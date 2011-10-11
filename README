@@ -1,6 +1,17 @@
-Graf is a simple tool for rendering graphs on canvas. No, not oil paintings of bar charts on stretched linen - mathematical graphs with vertices and edges on an HTML5 canvas. (Like this: http://en.wikipedia.org/wiki/Graph_(mathematics)) Graphs are beautiful, so they should be rendered beautifully, constructed effortlessly and manipulated fluidly.
+                      ___
+                     / __\
+     __   _ __  __  | |_
+    /  \ | '__/\_ \/_  _/
+   | () || |   / _ || |
+    \__ ||_|   \___|| |
+    __| |          _| |
+   /___/          /__/
+ 
+graf renders graphs on canvas
+
+No, not oil paintings of bar charts on stretched linen - mathematical graphs with vertices and edges on an HTML5 canvas. Graphs are beautiful, so they should be rendered beautifully, constructed effortlessly and manipulated fluidly.
 
 Install:
 It's nothing but a little bit of javascript, so just download it or uploaded it wherever you like and give it a try with your favorite browser.
 
-Right now, it's barely a prototype/demo/toy.  Maybe you can help me make it into something useful.
+Right now, it's barely a prototype/demo/toy. Maybe you can help me make it into something useful.
