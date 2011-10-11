@@ -1,11 +1,17 @@
- //Graph
-//Represents a directed or undirected multigraph.
+//graph.js
+//Follows the MVVM pattern where Graph is the model, GraphViewModel is the viewmodel and CanvasGraphView is the view
+//1. Graph models a mathematical graph: http://en.wikipedia.org/wiki/Graph_(mathematics)
+//2. GraphViewModel models a view of a graph, especially how its vertices and edges are positioned
+//3. CanvasGraphView renders and manipulates the model and a view-model of a graph on an HTML canvas
+
+//Graph
+//Represents a directed or undirected graph.
 function Graph(v, e) { //Constructor
 	function isArray(o) { return Object.prototype.toString.call(o) === '[object Array]'; };
 	if (!isArray(v))
-		throw new TypeError("Graph(v, e): Graph vertices must be in an array.  v: " + v.toString());
+		throw new TypeError("Graph(v, e): Graph vertices must be an array.  v: " + v.toString());
 	if (!isArray(e))
-		throw new TypeError("Graph(v, e): Graph edges must be in an array.  e: " + e.toString());
+		throw new TypeError("Graph(v, e): Graph edges must be in array.  e: " + e.toString());
 	this.v = v;
 	this.e = e;
 	this.vertexAdded = new Array();
@@ -71,6 +77,7 @@ Graph.prototype = { //Prototype
 		}
 	}
 };
+
 //GraphViewModel
 //The prototype for models of views of graphs.
 function GraphViewModel(graph) {
@@ -173,8 +180,7 @@ Vector = {
 	}
 }
 
-function Ease(x0, x1, v0, t0, t1)
-{
+function Ease(x0, x1, v0, t0, t1) {
 	var dx = x1 - x0;
 	var dt = t1 - t0;
 	var tmid = (t1-t0)/2 + t0;
@@ -203,8 +209,7 @@ function Ease(x0, x1, v0, t0, t1)
 	this.end = t1;
 }
 
-function Decelerate(x0, v0, t0, t1)
-{
+function Decelerate(x0, v0, t0, t1) {
 	var dt = t1 - t0;
 	var a = -v0/dt;
 	var d = function(v, a, t) {
@@ -235,69 +240,64 @@ function CanvasGraphView(graphViewModel, canvas) {
 	var easeTime = 150;
 	var coastTime = 600;
 	canvas.onmousedown = function(event) {
-		if (event.button === 0) {
-			if (view.motion != null) {
+		if (view.motion != null) {//arrest an ongoing motion
+			var now = new Date().getTime();
+			var v = [view.motion[0].v(now), view.motion[1].v(now)];
+			var x = [view.motion[0].x(now), view.motion[1].x(now)];
+			view.motion = [new Ease(x[0], x[0], v[0], now, now + easeTime),
+				new Ease(x[1], x[1], v[1], now, now + easeTime)];
+		}
+		var m0 = [event.clientX, event.clientY];
+		var v0 = view.vertexPick(m0);
+		if (v0 == null) {//pan
+			var pan0 = [view.pan[0], view.pan[1]];
+			view.c.onmousemove = function(event) {
 				var now = new Date().getTime();
-				var v = [view.motion[0].v(now), view.motion[1].v(now)];
-				var x = [view.motion[0].x(now), view.motion[1].x(now)];
-				view.motion = [new Ease(x[0], x[0], v[0], now, now + easeTime),
-					new Ease(x[1], x[1], v[1], now, now + easeTime)];
+				var m1 = [event.clientX, event.clientY];
+				var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
+				if (view.motion != null) {
+					var v = [view.motion[0].v(now), view.motion[1].v(now)];
+					var x = [view.motion[0].x(now), view.motion[1].x(now)];
+					view.motion = [new Ease(x[0], pan0[0]-d[0], v[0], now, now + easeTime),
+						new Ease(x[1], pan0[1]-d[1], v[1], now, now + easeTime)];
+				}
+				else {
+					view.motion = [new Ease(view.pan[0], pan0[0]-d[0], 0, now, now + easeTime),
+						new Ease(view.pan[1], pan0[1]-d[1], 0, now, now + easeTime)];
+					view.animate();
+				}
 			}
-			var m0 = [event.clientX, event.clientY];
-			var v0 = view.vectorPick(m0);
-			if (v0 == null) {//pan
-				var pan0 = [view.pan[0], view.pan[1]];
-				view.c.onmousemove = function(event) {
+			view.c.onmouseup = function(event) {
+				view.c.onmousemove = null;
+				if (view.motion != null) {
 					var now = new Date().getTime();
-					var m1 = [event.clientX, event.clientY];
-					var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
-					if (view.motion != null) {
-						var v = [view.motion[0].v(now), view.motion[1].v(now)];
-						var x = [view.motion[0].x(now), view.motion[1].x(now)];
-						view.motion = [new Ease(x[0], pan0[0]-d[0], v[0], now, now + easeTime),
-							new Ease(x[1], pan0[1]-d[1], v[1], now, now + easeTime)];
-					}
-					else {
-						view.motion = [new Ease(view.pan[0], pan0[0]-d[0], 0, now, now + easeTime),
-							new Ease(view.pan[1], pan0[1]-d[1], 0, now, now + easeTime)];
-						view.animate();
-					}
-				}
-				view.c.onmouseup = function(event) {
-					view.c.onmousemove = null;
-					if (view.motion != null) {
-						var now = new Date().getTime();
-						var v = [view.motion[0].v(now), view.motion[1].v(now)];
-						var x = [view.motion[0].x(now), view.motion[1].x(now)];
-						view.motion = [new Decelerate(x[0], v[0], now, now + coastTime),
-							new Decelerate(x[1], v[1], now, now + coastTime)];
-					}
-				}
-			}
-			else {//draw edge
-				view.c.onmouseup = function(event) {
-					var m1 = [event.clientX, event.clientY];
-					var v1 = view.vectorPick(m1);
-					if (v1 != null)
-						view.gvm.g.addEdge([v0, v1]);
+					var v = [view.motion[0].v(now), view.motion[1].v(now)];
+					var x = [view.motion[0].x(now), view.motion[1].x(now)];
+					view.motion = [new Decelerate(x[0], v[0], now, now + coastTime),
+						new Decelerate(x[1], v[1], now, now + coastTime)];
 				}
 			}
 		}
+		else {//drag vertex
+			view.c.onmouseup = function(event) {
+				var m1 = [event.clientX, event.clientY];
+				var v1 = view.vertexPick(m1);
+				if (v1 != null)//draw edge
+					view.gvm.g.addEdge([v0, v1]);
+				else {//move vertex
+					var x = view.untransform([event.clientX, event.clientY]);
+					view.gvm.v[v0][0] = x[0];
+					view.gvm.v[v0][1] = x[1];
+					if (view.motion == null)
+						view.render();
+				}
+			}
+		}
+		return false;
 	}
 	
 	canvas.onclick = function(event) {
-		if (event.altKey) {
-			var x = view.untransform([event.clientX, event.clientY]);
-			view.gvm.v[0][0] = x[0];
-			view.gvm.v[0][1] = x[1];
-			if (view.motion == null)
-				view.render();
-		}
-		if (event.ctrlKey) {
-			var v = view.vectorPick([event.clientX, event.clientY]);
-			if (v != null)
-				console.log(view.gvm.v.v);
-		}
+		
 	}
 	canvas.onmouseout = function(event) {
 		view.c.onmousemove = null;
@@ -320,7 +320,9 @@ CanvasGraphView.prototype = {
 	pan: [0, 0],
 	motion: null,
 	maxFPS: 40,
-	vectorRadius: .25,
+	maxScale: 1500,
+	minScale: 45,
+	vertexRadius: .25,
     animate: function() {
 		var t = new Date().getTime();
 		if (this.motion != null) {
@@ -339,9 +341,12 @@ CanvasGraphView.prototype = {
 		}
     },
 	zoom: function(f) {
-		this.scale += f * this.scale;
-		this.pan[0] += f * this.pan[0];
-		this.pan[1] += f * this.pan[1];
+		var oldScale = this.scale;
+		this.scale += f * oldScale;
+		if (this.scale < this.minScale) this.scale = this.minScale;
+		if (this.scale > this.maxScale) this.scale = this.maxScale;
+		this.pan[0] += (this.scale - oldScale) / oldScale * this.pan[0];
+		this.pan[1] += (this.scale - oldScale) / oldScale * this.pan[1];
 	},
 	transform: function (v) {
 		return [v[0] * this.scale - this.pan[0] + this.c.width/2, v[1] * this.scale - this.pan[1] + this.c.height/2];
@@ -349,8 +354,8 @@ CanvasGraphView.prototype = {
 	untransform: function (v) {
 		return [(v[0] + this.pan[0] - this.c.width/2) / this.scale, (v[1] + this.pan[1] - this.c.height/2) / this.scale];
 	},
-	vectorPick: function (x) {
-		var r = this.vectorRadius;
+	vertexPick: function (x) {
+		var r = this.vertexRadius;
 		var y = this.untransform(x);
 		for (var i = 0; i < this.gvm.v.length; i++) {
 			var v = this.gvm.v[i];
@@ -363,11 +368,10 @@ CanvasGraphView.prototype = {
 		return null;
 	},
 	render: function() {
-		var radius = this.vectorRadius;
+		var radius = this.vertexRadius;
 		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
 		this.ctx.save();
 		var fontSize = (this.scale * .2) | 0;
-		if (fontSize > 16) fontSize = 16;
 		this.ctx.font = fontSize + "px Arial";
 		this.ctx.textAlign = "center";
 		this.ctx.lineWidth = this.scale * .02;
@@ -386,8 +390,7 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[this.gvm.e[i].e[0]];
 			var b = this.gvm.v[this.gvm.e[i].e[1]];
-			var c = [(a[0] + b[0]) / 2 - Math.abs(a[1] - b[1]) / 2, 
-				(a[1] + b[1]) / 2 - Math.abs(a[0] - b[0]) / 2];
+			var c = [(a[0] + b[0]) / 2 + (b[1] - a[1]) / 4, (a[1] + b[1]) / 2 + (b[0] - a[0]) / 4];
 			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a)), radius), a));
 			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b)), radius), b));
 			c = this.transform(c);
