@@ -1,4 +1,4 @@
-//graph.js
+﻿//graph.js
 //Follows the MVVM pattern where Graph is the model, GraphViewModel is the viewmodel and CanvasGraphView is the view
 //1. Graph models a mathematical graph: http://en.wikipedia.org/wiki/Graph_(mathematics)
 //2. GraphViewModel models a view of a graph, especially how its vertices and edges are positioned
@@ -113,9 +113,10 @@ function GraphViewModel(graph) {
 }
 GraphViewModel.prototype = {
 	Vertex: function(v, p) {
-		this.v = v;
-		this[0] = p[0];
-		this[1] = p[1];
+		this.text = v;
+		this.p = [p[0], p[1]];
+		this.width = .375 + v.length * .125;
+		this.height = .5;
 	},
 	Edge: function(e) {
 		this.e = e;
@@ -150,8 +151,8 @@ GraphViewModel.prototype = {
 	position: function() {
 		var spiral = this.stepSpiral(this.g.v.length);
 		for (var i = 0; i < this.g.v.length; i++) {
-			this.v[i][0] = spiral[i][0];
-			this.v[i][1] = spiral[i][1];
+			this.v[i].p[0] = spiral[i][0];
+			this.v[i].p[1] = spiral[i][1];
 		}
 	},
 	notify: function(eventHandlers, eventArgs) {
@@ -248,7 +249,7 @@ function CanvasGraphView(graphViewModel, canvas) {
 				new Ease(x[1], x[1], v[1], now, now + easeTime)];
 		}
 		var m0 = [event.clientX, event.clientY];
-		var v0 = view.vertexPick(m0);
+		var v0 = view.pickVertex(m0);
 		if (v0 == null) {//pan
 			var pan0 = [view.pan[0], view.pan[1]];
 			view.c.onmousemove = function(event) {
@@ -281,13 +282,14 @@ function CanvasGraphView(graphViewModel, canvas) {
 		else {//drag vertex
 			view.c.onmouseup = function(event) {
 				var m1 = [event.clientX, event.clientY];
-				var v1 = view.vertexPick(m1);
-				if (v1 != null)//draw edge
+				var v1 = view.pickVertex(m1);
+				if (v1 != null && v0 != v1)//draw edge
 					view.gvm.g.addEdge([v0, v1]);
 				else {//move vertex
-					var x = view.untransform([event.clientX, event.clientY]);
-					view.gvm.v[v0][0] = x[0];
-					view.gvm.v[v0][1] = x[1];
+					var a = view.untransform(m0);
+					var b = view.untransform(m1);
+					view.gvm.v[v0].p[0] += b[0] - a[0];
+					view.gvm.v[v0].p[1] += b[1] - a[1];
 					if (view.motion == null)
 						view.render();
 				}
@@ -295,7 +297,6 @@ function CanvasGraphView(graphViewModel, canvas) {
 		}
 		return false;
 	}
-	
 	canvas.onclick = function(event) {
 		
 	}
@@ -312,7 +313,6 @@ function CanvasGraphView(graphViewModel, canvas) {
 	gvm.graphChanged.push(function () {
 		view.render();
 	});
-	
 	this.render();
 }
 CanvasGraphView.prototype = {
@@ -320,9 +320,8 @@ CanvasGraphView.prototype = {
 	pan: [0, 0],
 	motion: null,
 	maxFPS: 40,
-	maxScale: 1500,
+	maxScale: 1450,
 	minScale: 45,
-	vertexRadius: .25,
     animate: function() {
 		var t = new Date().getTime();
 		if (this.motion != null) {
@@ -337,7 +336,6 @@ CanvasGraphView.prototype = {
 			var frameDuration = new Date().getTime() - t;
 			var view = this;
 			setTimeout(function(){view.animate()}, frameDuration < 1000/this.maxFPS ? 1000/this.maxFPS - frameDuration : 1);
-			this.ctx.fillText("render time: " + frameDuration + "ms", 200, 200);
 		}
     },
 	zoom: function(f) {
@@ -354,50 +352,75 @@ CanvasGraphView.prototype = {
 	untransform: function (v) {
 		return [(v[0] + this.pan[0] - this.c.width/2) / this.scale, (v[1] + this.pan[1] - this.c.height/2) / this.scale];
 	},
-	vertexPick: function (x) {
-		var r = this.vertexRadius;
-		var y = this.untransform(x);
+	pickVertex: function (p) {
+		p = this.untransform(p);
 		for (var i = 0; i < this.gvm.v.length; i++) {
 			var v = this.gvm.v[i];
-			if (v[0]-y[0] <= r && v[1]-y[1] <= r) {
-				var d = Vector.subtract(v, y);
-				if (d[0]*d[0] + d[1]*d[1] <= r*r)
+			var d = [Math.abs(p[0] - v.p[0]), Math.abs(p[1] - v.p[1])];//vector from center of vertex to point flipped to the positive quadrant
+			if (d[0] < v.width / 2 && d[1] <= v.height / 2) {//bounding box
+				var sqrOfDistance = d[0] * d[0] + d[1] * d[1];//from center
+				var angle = Math.atan2(d[0] / v.width, d[1] / v.height);
+				if (sqrOfDistance < Math.pow(Math.sin(angle) * v.width / 2, 2) + Math.pow(Math.cos(angle) * v.height / 2, 2))
 					return i;
 			}
 		}
-		return null;
 	},
 	render: function() {
-		var radius = this.vertexRadius;
 		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
 		this.ctx.save();
 		var fontSize = (this.scale * .2) | 0;
-		this.ctx.font = fontSize + "px Arial";
+		this.ctx.font = fontSize + "px sans-serif";
 		this.ctx.textAlign = "center";
 		this.ctx.lineWidth = this.scale * .02;
-		if (this.ctx.lineWidth < .5) this.ctx.lineWidth = .5;
 		for (var i = 0; i < this.gvm.v.length; i++) {
 			var v = this.gvm.v[i];
-			var p = this.transform(this.gvm.v[i]);
+			var p = this.transform(this.gvm.v[i].p);
 			if (fontSize >= 5)
-				this.ctx.fillText(v.v, p[0], p[1] + fontSize * 7 / 20);
-			this.ctx.beginPath();
-			this.ctx.moveTo(p[0] + this.scale * radius, p[1]);
-			this.ctx.arc(p[0], p[1], this.scale * radius, 0, 2*Math.PI, false);
-			this.ctx.stroke();
+				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
+			if (v.width == v.height)
+				this.circle(p[0], p[1], this.scale * v.height / 2);
+			else
+				this.ellipse(p[0], p[1], this.scale * v.width, this.scale * v.height);
 		}
 		for (var i = 0; i < this.gvm.e.length; i++) {
 			this.ctx.beginPath();
 			var a = this.gvm.v[this.gvm.e[i].e[0]];
 			var b = this.gvm.v[this.gvm.e[i].e[1]];
-			var c = [(a[0] + b[0]) / 2 + (b[1] - a[1]) / 4, (a[1] + b[1]) / 2 + (b[0] - a[0]) / 4];
-			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a)), radius), a));
-			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b)), radius), b));
+			var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 4, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 4];
+			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
+			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
+			angle = Math.atan2((c[0] - b.p[0]) / b.width, (c[1] - b.p[1]) / b.height);
+			var lb = Math.sqrt(Math.pow(Math.sin(angle) * b.width / 2, 2) + Math.pow(Math.cos(angle) * b.height / 2, 2));
+			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a.p)), la), a.p));
+			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b.p)), lb), b.p));
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
 			this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
 			this.ctx.stroke();
 		}
 		this.ctx.restore();
+	},
+	circle: function(x, y, r) {
+		this.ctx.beginPath();
+		this.ctx.moveTo(x + r, y);
+		this.ctx.arc(x, y, r, 0, 2 * Math.PI, false);
+		this.ctx.stroke();
+	},
+	ellipse: function(x, y, w, h) {//bezier spline approximation: http://en.wikipedia.org/wiki/Bézier_spline#Approximating_circular_arcs
+		this.ctx.beginPath();
+		this.ctx.moveTo(x + w / 2, y);//right
+		var c1 = [x + w / 2, y - h * 2 * (Math.SQRT2 - 1) / 3];//outer control points
+		var c2 = [x + w * 2 * (Math.SQRT2 - 1) / 3, y - h / 2];
+		this.ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], x, y - h / 2);//top
+		c1 = [x - w * 2 * (Math.SQRT2 - 1) / 3, y - h / 2];
+		c2 = [x - w / 2, y - h * 2 * (Math.SQRT2 - 1) / 3];
+		this.ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], x - w / 2, y);//left
+		c1 = [x - w / 2, y + h * 2 * (Math.SQRT2 - 1) / 3];
+		c2 = [x - w * 2 * (Math.SQRT2 - 1) / 3, y + h / 2];
+		this.ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], x, y + h / 2);//bottom
+		c1 = [x + w * 2 * (Math.SQRT2 - 1) / 3, y + h / 2];
+		c2 = [x + w / 2, y + h * 2 * (Math.SQRT2 - 1) / 3];
+		this.ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], x + w / 2, y);//right
+		this.ctx.stroke();
 	}
 }
