@@ -10,10 +10,9 @@ var gvm = new GraphViewModel(g);
 var panning = false;
 var cgv;
 function onLoad() {
-	//var canvas = document.createElement("canvas");
-	//document.body.appendChild(canvas);
-	cgv = new CanvasGraphView(gvm, document.getElementById("canvas"));
-	
+	var canvas = document.createElement("canvas");
+	document.body.appendChild(canvas);
+	cgv = new CanvasGraphView(gvm, canvas);
 	cgv.textChanged.push(function(text) {
 		var input = document.getElementById("input");
 		input.disabled = text === null ? "disabled" : "";
@@ -23,7 +22,6 @@ function onLoad() {
 			input.select();
 		}
 	});
-	
 	var sizeCanvas = function() {
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
@@ -32,9 +30,15 @@ function onLoad() {
 	window.onresize = sizeCanvas;
 	sizeCanvas();
 }
-function onTextChange(event) {
-	var input = document.getElementById("input");
-	cgv.setText(input.value);
+function onKeyPress(event) {
+	var code;
+	if (event.keyCode) code = event.keyCode;
+	else if (event.which) code = event.which;
+	if (code == 13)//enter
+	{
+		var input = document.getElementById("input");
+		cgv.setText(input.value);
+	}
 	return true;
 }
 </script>
@@ -44,10 +48,9 @@ canvas { position: absolute; z-index: 0; }
 div#toolbar { float:left; position: absolute; padding: 2px; z-index: 1 }
 </style>
 </head>
-<body onload="return onLoad();">
+<body onload="return onLoad();" >
 <div id="toolbar">
-	<input id="input" type="text" onchange="return onTextChange();" disabled="disabled"/>
+	<input id="input" type="text" onkeypress="return onKeyPress(event);" disabled="disabled"/>
 </div>
-<canvas id="canvas"></canvas>
 </body>
 </html>
