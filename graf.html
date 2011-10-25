@@ -10,9 +10,20 @@ var gvm = new GraphViewModel(g);
 var panning = false;
 var cgv;
 function onLoad() {
-	var canvas = document.createElement("canvas");
-	document.body.appendChild(canvas);
-	cgv = new CanvasGraphView(gvm, canvas);
+	//var canvas = document.createElement("canvas");
+	//document.body.appendChild(canvas);
+	cgv = new CanvasGraphView(gvm, document.getElementById("canvas"));
+	
+	cgv.textChanged.push(function(text) {
+		var input = document.getElementById("input");
+		input.disabled = text === null ? "disabled" : "";
+		input.value = text;
+		if (text !== null) {
+			input.focus();
+			input.select();
+		}
+	});
+	
 	var sizeCanvas = function() {
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
@@ -21,15 +32,22 @@ function onLoad() {
 	window.onresize = sizeCanvas;
 	sizeCanvas();
 }
+function onTextChange(event) {
+	var input = document.getElementById("input");
+	cgv.setText(input.value);
+	return true;
+}
 </script>
 <style type="text/css">
-body { margin: 0px; font-family: arial }
-canvas { position: absolute }
-div#toolbar { margin: auto; padding: 2px; text-align: center }
+body { margin: 0px; font-family: helvetica, sans-serif }
+canvas { position: absolute; z-index: 0; }
+div#toolbar { float:left; position: absolute; padding: 2px; z-index: 1 }
 </style>
 </head>
 <body onload="return onLoad();">
 <div id="toolbar">
+	<input id="input" type="text" onchange="return onTextChange();" disabled="disabled"/>
 </div>
+<canvas id="canvas"></canvas>
 </body>
 </html>

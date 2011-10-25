@@ -18,6 +18,7 @@ function Graph(v, e) { //Constructor
 	this.edgeAdded = new Array();
 	this.vertexRemoved = new Array();
 	this.edgeRemoved = new Array();
+	this.vertexEdited = new Array();
 }
 Graph.prototype = { //Prototype
 	isConnected: function() {
@@ -71,6 +72,10 @@ Graph.prototype = { //Prototype
 		this.e.splice(i, 1);
 		this.notify(this.edgeRemoved, i);
 	},
+	editVertex: function(i, v) {
+		this.v[i] = v;
+		this.notify(this.vertexEdited, i);
+	},
 	notify: function(eventHandlers, eventArgs) {
 		for (var j = 0; j < eventHandlers.length; j++) {
 			eventHandlers[j](eventArgs);
@@ -92,7 +97,7 @@ function GraphViewModel(graph) {
 		this.e.push(new this.Edge(this.g.e[i]));
 	}
 	var vm = this;
-	this.graphChanged = new Array();//event
+	this.graphChanged = new Array();//events
 	graph.vertexAdded.push(function (i) {
 		vm.v.push(new vm.Vertex(vm.g.v[i], spiral[i]));
 		vm.notify(vm.graphChanged);
@@ -110,13 +115,21 @@ function GraphViewModel(graph) {
 		vm.position();
 		vm.notify(vm.graphChanged);
 	});
+	graph.vertexEdited.push(function (i) {
+		vm.v[i].setText(g.v[i]);
+		vm.notify(vm.graphChanged);
+	});
 }
 GraphViewModel.prototype = {
-	Vertex: function(v, p) {
-		this.text = v;
-		this.p = [p[0], p[1]];
-		this.width = .375 + v.length * .125;
-		this.height = .5;
+	Vertex: function(text, p) {
+		var v = this;
+		v.text = text;
+		v.p = [p[0], p[1]];
+		(v.setText = function (t) {
+			v.text = t;
+			v.width = .375 + t.length * .125;
+			v.height = .5;
+		})(text);
 	},
 	Edge: function(e) {
 		this.e = e;
@@ -238,8 +251,10 @@ function CanvasGraphView(graphViewModel, canvas) {
 	this.c = canvas;
 	this.ctx = canvas.getContext("2d");
 	var view = this;
-	var easeTime = 150;
-	var coastTime = 600;
+	var easeTime = 100;
+	var coastTime = 400;
+	this.selection = null;
+	this.textChanged = new Array();//event
 	canvas.onmousedown = function(event) {
 		if (view.motion != null) {//arrest an ongoing motion
 			var now = new Date().getTime();
@@ -298,14 +313,19 @@ function CanvasGraphView(graphViewModel, canvas) {
 		return false;
 	}
 	canvas.onclick = function(event) {
-		
+		var m = [event.clientX, event.clientY];
+		var v = view.pickVertex(m);
+		view.selection = v;
+		view.notify(view.textChanged, view.getText());
+		view.render();
 	}
 	canvas.onmouseout = function(event) {
 		view.c.onmousemove = null;
 	}
 	canvas.onmousewheel = function(event) {
 		view.zoom(event.wheelDelta/1000);
-		view.render();
+		if (view.motion == null)
+			view.render();
 		if (event.preventDefault)
 			event.preventDefault();
 		event.returnValue = false;
@@ -364,29 +384,21 @@ CanvasGraphView.prototype = {
 					return i;
 			}
 		}
+		return null;
 	},
 	render: function() {
 		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
 		this.ctx.save();
 		var fontSize = (this.scale * .2) | 0;
-		this.ctx.font = fontSize + "px sans-serif";
+		this.ctx.font = fontSize + "px helvetica, sans-serif";
 		this.ctx.textAlign = "center";
 		this.ctx.lineWidth = this.scale * .02;
-		for (var i = 0; i < this.gvm.v.length; i++) {
-			var v = this.gvm.v[i];
-			var p = this.transform(this.gvm.v[i].p);
-			if (fontSize >= 5)
-				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
-			if (v.width == v.height)
-				this.circle(p[0], p[1], this.scale * v.height / 2);
-			else
-				this.ellipse(p[0], p[1], this.scale * v.width, this.scale * v.height);
-		}
+		this.ctx.strokeStyle = "black";
 		for (var i = 0; i < this.gvm.e.length; i++) {
 			this.ctx.beginPath();
 			var a = this.gvm.v[this.gvm.e[i].e[0]];
 			var b = this.gvm.v[this.gvm.e[i].e[1]];
-			var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 4, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 4];
+			var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
 			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
 			angle = Math.atan2((c[0] - b.p[0]) / b.width, (c[1] - b.p[1]) / b.height);
@@ -398,13 +410,31 @@ CanvasGraphView.prototype = {
 			this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
 			this.ctx.stroke();
 		}
+		for (var i = 0; i < this.gvm.v.length; i++) {
+			var v = this.gvm.v[i];
+			var p = this.transform(this.gvm.v[i].p);
+			this.ctx.strokeStyle = i == this.selection ? "white" : "black";
+			if (v.width == v.height)
+				this.circle(p[0], p[1], this.scale * v.height / 2);
+			else
+				this.ellipse(p[0], p[1], this.scale * v.width, this.scale * v.height);
+			this.ctx.stroke();
+			if (i == this.selection) {
+				this.ctx.fillStyle = "black";
+				this.ctx.fill();
+				this.ctx.fillStyle = "white";
+				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
+				this.ctx.fillStyle = "black";
+			}
+			else
+				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
+		}
 		this.ctx.restore();
 	},
 	circle: function(x, y, r) {
 		this.ctx.beginPath();
 		this.ctx.moveTo(x + r, y);
 		this.ctx.arc(x, y, r, 0, 2 * Math.PI, false);
-		this.ctx.stroke();
 	},
 	ellipse: function(x, y, w, h) {//bezier spline approximation: http://en.wikipedia.org/wiki/Bézier_spline#Approximating_circular_arcs
 		this.ctx.beginPath();
@@ -421,6 +451,21 @@ CanvasGraphView.prototype = {
 		c1 = [x + w * 2 * (Math.SQRT2 - 1) / 3, y + h / 2];
 		c2 = [x + w / 2, y + h * 2 * (Math.SQRT2 - 1) / 3];
 		this.ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], x + w / 2, y);//right
-		this.ctx.stroke();
+	},
+	setText: function(text) {
+		if (this.selection !== null) {
+			this.gvm.g.editVertex(this.selection, text);
+			this.notify(this.textChanged, text);
+		}
+	},
+	getText: function() {
+		if (this.selection !== null)
+			return this.gvm.v[this.selection].text;
+		else return null;
+	},
+	notify: function(eventHandlers, eventArgs) {
+		for (var j = 0; j < eventHandlers.length; j++) {
+			eventHandlers[j](eventArgs);
+		}
 	}
 }
