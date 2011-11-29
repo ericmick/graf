@@ -99,7 +99,7 @@ function GraphViewModel(graph) {
 	var vm = this;
 	this.graphChanged = new Array();//events
 	graph.vertexAdded.push(function (i) {
-		vm.v.push(new vm.Vertex(vm.g.v[i], spiral[i]));
+		vm.v.push(new vm.Vertex(vm.g.v[i], [0, 0]));
 		vm.notify(vm.graphChanged);
 	});
 	graph.edgeAdded.push(function (i) {
@@ -298,9 +298,17 @@ function CanvasGraphView(graphViewModel, canvas) {
 			view.c.onmouseup = function(event) {
 				var m1 = [event.clientX, event.clientY];
 				var v1 = view.pickVertex(m1);
-				if (v1 != null && v0 != v1)//draw edge
+				if (v1 != null && v0 != v1) {//draw edge
 					view.gvm.g.addEdge([v0, v1]);
-				else {//move vertex
+				}
+				else if (v1 == null && event.ctrlKey) {//draw edge and new vertex
+					view.gvm.g.addVertex("");
+					var a = view.untransform(m1);
+					view.gvm.v[view.gvm.v.length - 1].p[0] = a[0];
+					view.gvm.v[view.gvm.v.length - 1].p[1] = a[1];
+					view.gvm.g.addEdge([v0, view.gvm.g.v.length - 1]);
+				}
+				else if (v1 == null || v0 == v1){//move vertex
 					var a = view.untransform(m0);
 					var b = view.untransform(m1);
 					view.gvm.v[v0].p[0] += b[0] - a[0];
