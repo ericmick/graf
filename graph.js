@@ -1,4 +1,4 @@
-﻿//graph.js
+//graph.js
 //Follows the MVVM pattern where Graph is the model, GraphViewModel is the viewmodel and CanvasGraphView is the view
 //1. Graph models a mathematical graph: http://en.wikipedia.org/wiki/Graph_(mathematics)
 //2. GraphViewModel models a view of a graph, especially how its vertices and edges are positioned
@@ -7,18 +7,18 @@
 //Graph
 //Represents a directed or undirected graph.
 function Graph(v, e) { //Constructor
-	function isArray(o) { return Object.prototype.toString.call(o) === '[object Array]'; };
+	function isArray(o) { return Object.prototype.toString.call(o) === '[object Array]'; }
 	if (!isArray(v))
 		throw new TypeError("Graph(v, e): Graph vertices must be an array.  v: " + v.toString());
 	if (!isArray(e))
 		throw new TypeError("Graph(v, e): Graph edges must be in array.  e: " + e.toString());
 	this.v = v;
 	this.e = e;
-	this.vertexAdded = new Array();
-	this.edgeAdded = new Array();
-	this.vertexRemoved = new Array();
-	this.edgeRemoved = new Array();
-	this.vertexEdited = new Array();
+	this.vertexAdded = [];
+	this.edgeAdded = [];
+	this.vertexRemoved = [];
+	this.edgeRemoved = [];
+	this.vertexEdited = [];
 }
 Graph.prototype = { //Prototype
 	isConnected: function() {
@@ -39,7 +39,7 @@ Graph.prototype = { //Prototype
 		return b;
 	},
 	getConnected: function(a) {
-		b = this.getAdjacent(a);
+		var b = this.getAdjacent(a);
 		for (var i = 0; i < a.length; i++)
 			if (b.indexOf(a[i]) == -1)
 				b.push(a[i]);
@@ -68,7 +68,6 @@ Graph.prototype = { //Prototype
 		this.notify(this.vertexRemoved, i);
 	},
 	removeEdge: function(i) {
-		var e = this.e[i];
 		this.e.splice(i, 1);
 		this.notify(this.edgeRemoved, i);
 	},
@@ -87,17 +86,17 @@ Graph.prototype = { //Prototype
 //The prototype for models of views of graphs.
 function GraphViewModel(graph) {
 	this.g = graph;
-	this.v = new Array();
+	this.v = [];
 	var spiral = this.stepSpiral(this.g.v.length);
 	for (var i = 0; i < this.g.v.length; i++) {
 		this.v.push(new this.Vertex(this.g.v[i], spiral[i]));
 	}
-	this.e = new Array();
-	for (var i = 0; i < this.g.e.length; i++) {
+	this.e = [];
+	for (i = 0; i < this.g.e.length; i++) {
 		this.e.push(new this.Edge(this.g.e[i]));
 	}
 	var vm = this;
-	this.graphChanged = new Array();//events
+	this.graphChanged = [];//events
 	graph.vertexAdded.push(function (i) {
 		vm.v.push(new vm.Vertex(vm.g.v[i], [0, 0]));
 		vm.notify(vm.graphChanged);
@@ -116,7 +115,7 @@ function GraphViewModel(graph) {
 		vm.notify(vm.graphChanged);
 	});
 	graph.vertexEdited.push(function (i) {
-		vm.v[i].setText(g.v[i]);
+		vm.v[i].setText(graph.v[i]);
 		vm.notify(vm.graphChanged);
 	});
 }
@@ -125,11 +124,12 @@ GraphViewModel.prototype = {
 		var v = this;
 		v.text = text;
 		v.p = [p[0], p[1]];
-		(v.setText = function (t) {
+		v.setText = function (t) {
 			v.text = t;
-			v.width = .375 + t.length * .125;
-			v.height = .5;
-		})(text);
+			v.width = 0.375 + t.length * 0.125;
+			v.height = 0.5;
+		};
+        v.setText(text);
 	},
 	Edge: function(e) {
 		this.e = e;
@@ -143,16 +143,16 @@ GraphViewModel.prototype = {
 				p[0]++;
 				r.push([p[0],p[1]]);
 			}
-			for(var i = 0; i < x; i++) {
+			for(i = 0; i < x; i++) {
 				p[1]++;
 				r.push([p[0],p[1]]);
 			}
 			x++;
-			for(var i = 0; i < x; i++) {
+			for(i = 0; i < x; i++) {
 				p[0]--;
 				r.push([p[0],p[1]]);
 			}
-			for(var i = 0; i < x; i++) {
+			for(i = 0; i < x; i++) {
 				p[1]--;
 				r.push([p[0],p[1]]);
 			}
@@ -173,9 +173,9 @@ GraphViewModel.prototype = {
 			eventHandlers[j](eventArgs);
 		}
 	}
-}
+};
 
-Vector = {
+var Vector = {
 	length: function(a) {
 		return Math.sqrt(a[0]*a[0]+a[1]*a[1]);
 	},
@@ -192,7 +192,7 @@ Vector = {
 	multiply: function(a, x) {
 		return [a[0]*x,a[1]*x];
 	}
-}
+};
 
 function Ease(x0, x1, v0, t0, t1) {
 	var dx = x1 - x0;
@@ -203,7 +203,7 @@ function Ease(x0, x1, v0, t0, t1) {
 	var a1 = -vmid/(dt/2);
 	var d = function(v, a, t) {
 		return v*t + a*t*t/2;
-	}
+	};
 	this.x = function(t) {
 		if (t >= t1)
 			return x1;
@@ -211,7 +211,7 @@ function Ease(x0, x1, v0, t0, t1) {
 			return x0 + d(v0, a0, t-t0);
 		else if (t > tmid)
 			return x0 + d(v0, a0, tmid-t0) + d(vmid, a1, t-tmid);
-	}
+	};
 	this.v = function(t) {
 		if (t >= t1)
 			return 0;
@@ -219,7 +219,7 @@ function Ease(x0, x1, v0, t0, t1) {
 			return v0 + a0*(t-t0);
 		else if (t > tmid)
 			return vmid + a1*(t-tmid);
-	}
+	};
 	this.end = t1;
 }
 
@@ -228,19 +228,19 @@ function Decelerate(x0, v0, t0, t1) {
 	var a = -v0/dt;
 	var d = function(v, a, t) {
 		return v*t + a*t*t/2;
-	}
+	};
 	this.x = function(t) {
 		if (t >= t1)
 			return x0 + d(v0, a, t1-t0);
 		else
 			return x0 + d(v0, a, t-t0);
-	}
+	};
 	this.v = function(t) {
 		if (t >= t1)
 			return 0;
 		else
 			return v0 + a*(t-t0);
-	}
+	};
 	this.end = t1;
 }
 
@@ -254,9 +254,9 @@ function CanvasGraphView(graphViewModel, canvas) {
 	var easeTime = 100;
 	var coastTime = 400;
 	this.selection = null;
-	this.textChanged = new Array();//event
+	this.textChanged = [];//event
 	canvas.onmousedown = function(event) {
-		if (view.motion != null) {//arrest an ongoing motion
+		if (view.motion !== null) {//arrest an ongoing motion
 			var now = new Date().getTime();
 			var v = [view.motion[0].v(now), view.motion[1].v(now)];
 			var x = [view.motion[0].x(now), view.motion[1].x(now)];
@@ -265,13 +265,13 @@ function CanvasGraphView(graphViewModel, canvas) {
 		}
 		var m0 = [event.clientX, event.clientY];
 		var v0 = view.pickVertex(m0);
-		if (v0 == null) {//pan
+		if (v0 === null) {//pan
 			var pan0 = [view.pan[0], view.pan[1]];
 			view.c.onmousemove = function(event) {
 				var now = new Date().getTime();
 				var m1 = [event.clientX, event.clientY];
 				var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
-				if (view.motion != null) {
+				if (view.motion !== null) {
 					var v = [view.motion[0].v(now), view.motion[1].v(now)];
 					var x = [view.motion[0].x(now), view.motion[1].x(now)];
 					view.motion = [new Ease(x[0], pan0[0]-d[0], v[0], now, now + easeTime),
@@ -282,63 +282,64 @@ function CanvasGraphView(graphViewModel, canvas) {
 						new Ease(view.pan[1], pan0[1]-d[1], 0, now, now + easeTime)];
 					view.animate();
 				}
-			}
-			view.c.onmouseup = function(event) {
+			};
+			view.c.onmouseup = function() {
 				view.c.onmousemove = null;
-				if (view.motion != null) {
+				if (view.motion !== null) {
 					var now = new Date().getTime();
 					var v = [view.motion[0].v(now), view.motion[1].v(now)];
 					var x = [view.motion[0].x(now), view.motion[1].x(now)];
 					view.motion = [new Decelerate(x[0], v[0], now, now + coastTime),
 						new Decelerate(x[1], v[1], now, now + coastTime)];
 				}
-			}
+			};
 		}
 		else {//drag vertex
 			view.c.onmouseup = function(event) {
 				var m1 = [event.clientX, event.clientY];
 				var v1 = view.pickVertex(m1);
-				if (v1 != null && v0 != v1) {//draw edge
+                var a, b;
+				if (v1 !== null && v0 != v1) {//draw edge
 					view.gvm.g.addEdge([v0, v1]);
 				}
-				else if (v1 == null && event.ctrlKey) {//draw edge and new vertex
+				else if (v1 === null && event.ctrlKey) {//draw edge and new vertex
 					view.gvm.g.addVertex("");
-					var a = view.untransform(m1);
+					a = view.untransform(m1);
 					view.gvm.v[view.gvm.v.length - 1].p[0] = a[0];
 					view.gvm.v[view.gvm.v.length - 1].p[1] = a[1];
 					view.gvm.g.addEdge([v0, view.gvm.g.v.length - 1]);
 				}
-				else if (v1 == null || v0 == v1){//move vertex
-					var a = view.untransform(m0);
-					var b = view.untransform(m1);
+				else if (v1 === null || v0 === v1){//move vertex
+					a = view.untransform(m0);
+					b = view.untransform(m1);
 					view.gvm.v[v0].p[0] += b[0] - a[0];
 					view.gvm.v[v0].p[1] += b[1] - a[1];
-					if (view.motion == null)
+					if (view.motion === null)
 						view.render();
 				}
-			}
+			};
 		}
 		return false;
-	}
+	};
 	canvas.onclick = function(event) {
 		var m = [event.clientX, event.clientY];
 		var v = view.pickVertex(m);
 		view.selection = v;
 		view.notify(view.textChanged, view.getText());
 		view.render();
-	}
-	canvas.onmouseout = function(event) {
+	};
+	canvas.onmouseout = function() {
 		view.c.onmousemove = null;
-	}
+	};
 	canvas.onmousewheel = function(event) {
 		view.zoom(event.wheelDelta/1000);
-		if (view.motion == null)
+		if (view.motion === null)
 			view.render();
 		if (event.preventDefault)
 			event.preventDefault();
 		event.returnValue = false;
-	}
-	gvm.graphChanged.push(function () {
+	};
+	this.gvm.graphChanged.push(function () {
 		view.render();
 	});
 	this.render();
@@ -352,7 +353,7 @@ CanvasGraphView.prototype = {
 	minScale: 45,
     animate: function() {
 		var t = new Date().getTime();
-		if (this.motion != null) {
+		if (this.motion !== null) {
 			if (t > this.motion[0].end && t > this.motion[1].end) {
 				this.pan = [this.motion[0].x(t), this.motion[1].x(t)];
 				this.motion = null;
@@ -363,7 +364,7 @@ CanvasGraphView.prototype = {
 			this.render();
 			var frameDuration = new Date().getTime() - t;
 			var view = this;
-			setTimeout(function(){view.animate()}, frameDuration < 1000/this.maxFPS ? 1000/this.maxFPS - frameDuration : 1);
+			setTimeout(function(){view.animate();}, frameDuration < 1000/this.maxFPS ? 1000/this.maxFPS - frameDuration : 1);
 		}
     },
 	zoom: function(f) {
@@ -397,10 +398,10 @@ CanvasGraphView.prototype = {
 	render: function() {
 		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
 		this.ctx.save();
-		var fontSize = (this.scale * .2) | 0;
+		var fontSize = (this.scale * 0.2) | 0;
 		this.ctx.font = fontSize + "px helvetica, sans-serif";
 		this.ctx.textAlign = "center";
-		this.ctx.lineWidth = this.scale * .02;
+		this.ctx.lineWidth = this.scale * 0.02;
 		this.ctx.strokeStyle = "black";
 		for (var i = 0; i < this.gvm.e.length; i++) {
 			this.ctx.beginPath();
@@ -418,7 +419,7 @@ CanvasGraphView.prototype = {
 			this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
 			this.ctx.stroke();
 		}
-		for (var i = 0; i < this.gvm.v.length; i++) {
+		for (i = 0; i < this.gvm.v.length; i++) {
 			var v = this.gvm.v[i];
 			var p = this.transform(this.gvm.v[i].p);
 			this.ctx.strokeStyle = i == this.selection ? "white" : "black";
@@ -476,4 +477,4 @@ CanvasGraphView.prototype = {
 			eventHandlers[j](eventArgs);
 		}
 	}
-}
+};
