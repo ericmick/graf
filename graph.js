@@ -126,10 +126,10 @@ GraphViewModel.prototype = {
 		v.p = [p[0], p[1]];
 		v.setText = function (t) {
 			v.text = t;
-			v.width = 0.375 + t.length * 0.125;
+			v.width = Math.max(0.375 + t.length * 0.125, 0.5);
 			v.height = 0.5;
 		};
-        v.setText(text);
+		v.setText(text);
 	},
 	Edge: function(e) {
 		this.e = e;
@@ -267,20 +267,25 @@ CanvasGraphView.prototype = {
 	maxFPS: 30,
 	maxScale: 1450,
 	minScale: 45,
+	draggingVertex: null,
+	draggingFrom: null,
 	handleEvents: function() {
 		var view = this;
-		var events = ['onmousedown', 'onmousemove', 'onmouseout', 'onmouseup', 'onmousewheel'];
+		var events = ['onclick', 'onmousedown', 'onmousemove', 'onmouseout', 'onmouseup', 'onmousewheel'];
 		for (var i = 0; i < events.length; i++) {
 			(function() {
 				var eventName = events[i];
 				view.c[eventName] = function(event) {
 					for (var j = 0; j < view.behaviors.length; j++) {
-						if (typeof view.behaviors[j][eventName] == 'function') {
-							if (view.behaviors[j][eventName](event, view)) {
-								//if behaviors' event handlers return something truthy, consider the event consumed.
-								return;
-							}
+						if (typeof view.behaviors[j][eventName] == 'function'
+								&& view.behaviors[j][eventName](event, view)) {
+							//if a behavior's event handler returns something truthy, consider the event consumed.
+							return true;
 						}
+					}
+					//default cursor is default
+					if (eventName == 'onmousemove') {
+						view.setCursor('default');
 					}
 				};
 			})();
@@ -302,13 +307,13 @@ CanvasGraphView.prototype = {
 			setTimeout(function(){view.animate();}, frameDuration < 1000/this.maxFPS ? 1000/this.maxFPS - frameDuration : 1);
 		}
 	},
-	zoom: function(f) {
+	zoom: function(s, p) {
 		var oldScale = this.scale;
-		this.scale += f * oldScale;
+		this.scale += s * oldScale;
 		if (this.scale < this.minScale) this.scale = this.minScale;
 		if (this.scale > this.maxScale) this.scale = this.maxScale;
-		this.pan[0] += (this.scale - oldScale) / oldScale * this.pan[0];
-		this.pan[1] += (this.scale - oldScale) / oldScale * this.pan[1];
+		this.pan[0] += (this.scale - oldScale) / oldScale * (this.pan[0] + p[0] - this.c.width / 2);
+		this.pan[1] += (this.scale - oldScale) / oldScale * (this.pan[1] + p[1] - this.c.height / 2);
 	},
 	transform: function(v) {
 		return [v[0] * this.scale - this.pan[0] + this.c.width/2, v[1] * this.scale - this.pan[1] + this.c.height/2];
@@ -331,18 +336,14 @@ CanvasGraphView.prototype = {
 		}
 		return null;
 	},
-	render: function() {
-		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
-		this.ctx.save();
-		var fontSize = (this.scale * 0.2) | 0;
-		this.ctx.font = fontSize + "px helvetica, sans-serif";
-		this.ctx.textAlign = "center";
-		this.ctx.lineWidth = this.scale * 0.02;
-		this.ctx.strokeStyle = "black";
-		for (var i = 0; i < this.gvm.e.length; i++) {
+	renderEdge: function(edge) {
+		if (edge.e[0] == edge.e[1]) {
+			var p = this.gvm.v[edge.e[0]].p;
+			this.circle(p[0] + p.width / 2, p[1] + p.height / 2, p.height);
+		} else {
 			this.ctx.beginPath();
-			var a = this.gvm.v[this.gvm.e[i].e[0]];
-			var b = this.gvm.v[this.gvm.e[i].e[1]];
+			var a = this.gvm.v[edge.e[0]];
+			var b = this.gvm.v[edge.e[1]];
 			var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
 			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
@@ -353,26 +354,41 @@ CanvasGraphView.prototype = {
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
 			this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
-			this.ctx.stroke();
+		}
+		this.ctx.stroke();
+	},
+	renderVertex: function(v, selected) {
+		var p = this.transform(v.p);
+		this.ctx.strokeStyle = selected ? "white" : "black";
+		if (v.width == v.height) {
+			this.circle(p[0], p[1], this.scale * v.height / 2);
+		} else {
+			this.ellipse(p[0], p[1], this.scale * v.width, this.scale * v.height);
+		}
+		this.ctx.stroke();
+		if (selected) {
+			this.ctx.fillStyle = "black";
+			this.ctx.fill();
+			this.ctx.fillStyle = "white";
+			this.ctx.fillText(v.text, p[0], p[1] + this.fontSize * 7 / 20);
+			this.ctx.fillStyle = "black";
+		} else {
+			this.ctx.fillText(v.text, p[0], p[1] + this.fontSize * 7 / 20);
+		}
+	},
+	render: function() {
+		this.ctx.clearRect(0, 0, this.c.width, this.c.height);
+		this.ctx.save();
+		this.fontSize = (this.scale * 0.2) | 0;
+		this.ctx.font = this.fontSize + "px helvetica, sans-serif";
+		this.ctx.textAlign = "center";
+		this.ctx.lineWidth = this.scale * 0.02;
+		this.ctx.strokeStyle = "black";
+		for (var i = 0; i < this.gvm.e.length; i++) {
+			this.renderEdge(this.gvm.e[i]);
 		}
 		for (i = 0; i < this.gvm.v.length; i++) {
-			var v = this.gvm.v[i];
-			var p = this.transform(this.gvm.v[i].p);
-			this.ctx.strokeStyle = i == this.selection ? "white" : "black";
-			if (v.width == v.height)
-				this.circle(p[0], p[1], this.scale * v.height / 2);
-			else
-				this.ellipse(p[0], p[1], this.scale * v.width, this.scale * v.height);
-			this.ctx.stroke();
-			if (i == this.selection) {
-				this.ctx.fillStyle = "black";
-				this.ctx.fill();
-				this.ctx.fillStyle = "white";
-				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
-				this.ctx.fillStyle = "black";
-			}
-			else
-				this.ctx.fillText(v.text, p[0], p[1] + fontSize * 7 / 20);
+			this.renderVertex(this.gvm.v[i], i == this.selection);
 		}
 		this.ctx.restore();
 	},
@@ -438,38 +454,68 @@ CanvasGraphView.prototype = {
 			default:
 				this.c.style.cursor = cursor;
 		}
+	},
+	dragVertex: function(event) {
+		var m0 = [event.clientX, event.clientY];
+		var v0 = this.pickVertex(m0);
+		if (v0 !== null) {
+			this.draggingVertex = v0;
+			this.draggingFrom = m0;
+			return true;
+		}
+		return false;
+	},
+	isDraggingVertex: function() {
+		return this.draggingFrom !== null;
+	},
+	endDrag: function() {
+		if (this.draggingFrom === null) {
+			return false;
+		}
+		this.draggingVertex = null;
+		this.draggingFrom = null;
+		return true;
 	}
 };
 
-function Behavior(modifiers) {
+function Behavior(modifiers, disabled) {
 	this.modifiers = modifiers || [];
+	this.disabled = disabled || false;
 }
 Behavior.prototype = {
 	applies: function(event) {
+		if (this.disabled) {
+			return false;
+		}
 		for(var i = 0; i < this.modifiers.length; i++) {
-			if (!this.modifiers[i](event)) {
+			if (!event[this.modifiers[i]]) {
 				return false;
 			}
 		}
 		return true;
 	},
-	modify: function(prop) {
-		this.modifiers.push(function(event) {
-			return event[prop];
-		});
+	modify: function(prop, enable) {
+		if (enable === false) {
+			var i = this.modifiers.indexOf(prop);
+			if (i >= 0) {
+				this.modifiers.splice(i, 1);
+			}
+		} else {
+			this.modifiers.push(prop);
+		}
 		return this;
 	},
-	ctrl: function() {
-		return this.modify('ctrlKey');
+	ctrl: function(enable) {
+		return this.modify('ctrlKey', enable);
 	},
-	shift: function() {
-		return this.modify('shiftKey');
+	shift: function(enable) {
+		return this.modify('shiftKey', enable);
 	},
-	alt: function() {
-		return this.modify('altKey');
+	alt: function(enable) {
+		return this.modify('altKey', enable);
 	},
-	meta: function() {
-		return this.modify('metaKey');
+	meta: function(enable) {
+		return this.modify('metaKey', enable);
 	}
 };
 
@@ -481,71 +527,97 @@ function Panning(modifiers, easeTime, coastTime) {
 Panning.prototype = Object.create(Behavior.prototype);
 Panning.prototype.constructor = Panning;
 Panning.prototype.onmousedown = function(event, view) {
-	if (view.motion !== null) {
-		//arrest an ongoing motion
-		var now = new Date().getTime();
-		var v = [view.motion[0].v(now), view.motion[1].v(now)];
-		var x = [view.motion[0].x(now), view.motion[1].x(now)];
-		view.motion = [new Ease(x[0], x[0], v[0], now, now + this.easeTime),
-			new Ease(x[1], x[1], v[1], now, now + this.easeTime)];
-	}
-	var m0 = [event.clientX, event.clientY];
-	//pan
-	var pan0 = [view.pan[0], view.pan[1]];
-	view.setCursor('grabbing');
-	this.onmousemove = function(event) {
-		var now = new Date().getTime();
-		var m1 = [event.clientX, event.clientY];
-		var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
+	if (this.applies(event)) {
 		if (view.motion !== null) {
-			var v = [view.motion[0].v(now), view.motion[1].v(now)];
-			var x = [view.motion[0].x(now), view.motion[1].x(now)];
-			view.motion = [new Ease(x[0], pan0[0]-d[0], v[0], now, now + this.easeTime),
-				new Ease(x[1], pan0[1]-d[1], v[1], now, now + this.easeTime)];
-		} else {
-			view.motion = [new Ease(view.pan[0], pan0[0]-d[0], 0, now, now + this.easeTime),
-				new Ease(view.pan[1], pan0[1]-d[1], 0, now, now + this.easeTime)];
-			view.animate();
-		}
-	};
-	this.onmouseup = function() {
-		view.setCursor('grab');
-		this.onmousemove = Panning.prototype.onmousemove;
-		if (view.motion !== null) {
+			//arrest an ongoing motion
 			var now = new Date().getTime();
 			var v = [view.motion[0].v(now), view.motion[1].v(now)];
 			var x = [view.motion[0].x(now), view.motion[1].x(now)];
-			view.motion = [new Decelerate(x[0], v[0], now, now + this.coastTime),
-				new Decelerate(x[1], v[1], now, now + this.coastTime)];
+			view.motion = [new Ease(x[0], x[0], v[0], now, now + this.easeTime),
+				new Ease(x[1], x[1], v[1], now, now + this.easeTime)];
 		}
-	};
-	return false;
-};
-Panning.prototype.onclick = function(event, view) {
-	var m = [event.clientX, event.clientY];
-	var v = view.pickVertex(m);
-	view.selection = v;
-	view.notify(view.textChanged, view.getText());
-	view.render();
-};
-Panning.prototype.onmousemove = function(event, view) {
-	var m0 = [event.clientX, event.clientY];
-	var v0 = view.pickVertex(m0);
-	if (v0 === null) {
-		view.setCursor('grab');
+		var m0 = [event.clientX, event.clientY];
+		var pan0 = [view.pan[0], view.pan[1]];
+		view.setCursor('grabbing');
+		this.onmousemove = function(event) {
+			var now = new Date().getTime();
+			var m1 = [event.clientX, event.clientY];
+			var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
+			if (view.motion !== null) {
+				var v = [view.motion[0].v(now), view.motion[1].v(now)];
+				var x = [view.motion[0].x(now), view.motion[1].x(now)];
+				view.motion = [new Ease(x[0], pan0[0]-d[0], v[0], now, now + this.easeTime),
+					new Ease(x[1], pan0[1]-d[1], v[1], now, now + this.easeTime)];
+			} else {
+				view.motion = [new Ease(view.pan[0], pan0[0]-d[0], 0, now, now + this.easeTime),
+					new Ease(view.pan[1], pan0[1]-d[1], 0, now, now + this.easeTime)];
+				view.animate();
+			}
+			view.setCursor('grabbing');
+			return true;
+		};
+		this.onmouseup = function() {
+			this.onmousemove = Panning.prototype.onmousemove;
+			if (view.motion !== null) {
+				var now = new Date().getTime();
+				var v = [view.motion[0].v(now), view.motion[1].v(now)];
+				var x = [view.motion[0].x(now), view.motion[1].x(now)];
+				view.motion = [new Decelerate(x[0], v[0], now, now + this.coastTime),
+					new Decelerate(x[1], v[1], now, now + this.coastTime)];
+			}
+			view.setCursor('grab');
+			return true;
+		};
+		return true;
 	}
 };
-Panning.prototype.onmousewheel = function(event, view) {
-	view.zoom(event.wheelDelta/1000);
-	if (view.motion === null)
-		view.render();
-	if (event.preventDefault)
-		event.preventDefault();
-	event.returnValue = false;
+Panning.prototype.onmousemove = function(event, view) {
+	if (this.applies(event)) {
+		var m0 = [event.clientX, event.clientY];
+		var v0 = view.pickVertex(m0);
+		if (v0 === null && view.draggingVertex === null) {
+			view.setCursor('grab');
+			return true;
+		}
+	}
 };
 Panning.prototype.onmouseout = function(event, view) {
 	if (typeof this.onmouseup == 'function') {
-		this.onmouseup(event, view);
+		return this.onmouseup(event, view);
+	}
+};
+
+function Selecting(modifiers) {
+	Behavior.call(this, modifiers);
+}
+
+Selecting.prototype = Object.create(Behavior.prototype);
+Selecting.prototype.constructor = Selecting;
+Selecting.prototype.onclick = function(event, view) {
+	if (this.applies(event)) {
+		var m = [event.clientX, event.clientY];
+		var v = view.pickVertex(m);
+		view.selection = v;
+		view.notify(view.textChanged, view.getText());
+		view.render();
+		return true;
+	}
+};
+
+function Zooming(modifiers) {
+	Behavior.call(this, modifiers);
+}
+Zooming.prototype = Object.create(Behavior.prototype);
+Zooming.prototype.constructor = Zooming;
+Zooming.prototype.onmousewheel = function(event, view) {
+	if (this.applies(event)) {
+		view.zoom(event.wheelDelta/1000, [event.clientX, event.clientY]);
+		if (view.motion === null)
+			view.render();
+		if (event.preventDefault)
+			event.preventDefault();
+		event.returnValue = false;
+		return true;
 	}
 };
 
@@ -554,68 +626,132 @@ function Moving(modifiers) {
 }
 Moving.prototype = Object.create(Behavior.prototype);
 Moving.prototype.constructor = Moving;
-Moving.prototype.onmousemove = function(event, view) {
-	var m0 = [event.clientX, event.clientY];
-	var v0 = view.pickVertex(m0);
-	if (v0 !== null) {
-		view.setCursor('move');
-		//consider this event consumed
-		return true;
+Moving.prototype.onmousedown = function(event, view) {
+	if (this.applies(event)) {
+		return view.dragVertex(event);
 	}
 };
-Moving.prototype.onmousedown = function(event, view) {
-	var m0 = [event.clientX, event.clientY];
-	var v0 = view.pickVertex(m0);
-	if (v0 !== null) {
-		//drag vertex
-		view.setCursor('move');
-		this.onmousemove = function(event) {
-			var m1 = [event.clientX, event.clientY];
-			var v1 = view.pickVertex(m1);
+Moving.prototype.onmousemove = function(event, view) {
+	if (this.applies(event)) {
+		var m = [event.clientX, event.clientY];
+		var v = view.pickVertex(m);
+		if (view.draggingVertex !== null) {
 			var a, b;
-			if (v1 !== null && v0 != v1) {
-				//draw edge
-				view.setCursor('alias');
-			} else if (v1 === null || v0 === v1) {
-				//move vertex
+			if (v === null || view.draggingVertex === v) {
 				view.setCursor('move');
+				//consider this event consumed
+				return true;
 			}
+		} else if (v !== null) {
+			view.setCursor('move');
 			//consider this event consumed
 			return true;
-		};
-		this.onmouseup = function(event) {
-			this.onmousemove = Moving.prototype.onmousemove;
-			this.onmouseup = null;
-			var m1 = [event.clientX, event.clientY];
-			var v1 = view.pickVertex(m1);
-			var a, b;
-			if (v1 !== null && v0 != v1) {
-				//draw edge
-				view.gvm.g.addEdge([v0, v1]);
-			} else if (v1 === null && event.ctrlKey) {
-				//draw edge and new vertex
-				view.gvm.g.addVertex('');
-				a = view.untransform(m1);
-				view.gvm.v[view.gvm.v.length - 1].p[0] = a[0];
-				view.gvm.v[view.gvm.v.length - 1].p[1] = a[1];
-				view.gvm.g.addEdge([v0, view.gvm.g.v.length - 1]);
-			} else if (v1 === null || v0 === v1) {
-				//move vertex
-				a = view.untransform(m0);
-				b = view.untransform(m1);
-				view.gvm.v[v0].p[0] += b[0] - a[0];
-				view.gvm.v[v0].p[1] += b[1] - a[1];
-				if (view.motion === null)
-					view.render();
-			}
-		};
-		//consider this event consumed
-		return true;
+		}
 	}
-	return false;
+};
+Moving.prototype.onmouseup = function(event, view) {
+	if (this.applies(event) && view.draggingVertex !== null) {
+		var v0 = view.draggingVertex;
+		var m1 = [event.clientX, event.clientY];
+		var v1 = view.pickVertex(m1);
+		var p0 = view.untransform(view.draggingFrom);
+		var p1 = view.untransform(m1);
+		if (v1 === null || v0 === v1) {
+			//move vertex
+			view.gvm.v[v0].p[0] += p1[0] - p0[0];
+			view.gvm.v[v0].p[1] += p1[1] - p0[1];
+			if (view.motion === null) {
+				view.render();
+			}
+			view.endDrag();
+			return true;
+		}
+	}
 };
 Moving.prototype.onmouseout = function(event, view) {
 	if (typeof this.onmouseup == 'function') {
-		this.onmouseup(event, view);
+		return this.onmouseup(event, view);
+	}
+};
+
+function CreatingEdges(modifiers) {
+	Behavior.call(this, modifiers);
+}
+CreatingEdges.prototype = Object.create(Behavior.prototype);
+CreatingEdges.prototype.constructor = CreatingEdges;
+CreatingEdges.prototype.onmousedown = function(event, view) {
+	if (this.applies(event)) {
+		return view.dragVertex(event);
+	}
+};
+CreatingEdges.prototype.onmousemove = function(event, view) {
+	if (this.applies(event) && view.isDraggingVertex()) {
+		var m1 = [event.clientX, event.clientY];
+		var v1 = view.pickVertex(m1);
+		if (v1 !== null) {
+			view.setCursor('alias');
+			//consider this event consumed
+			return true;
+		}
+	}
+};
+CreatingEdges.prototype.onmouseup = function(event, view) {
+	if (this.applies(event) && view.isDraggingVertex()) {
+		var v0 = view.draggingVertex;
+		var m1 = [event.clientX, event.clientY];
+		var v1 = view.pickVertex(m1);
+		if (v1 !== null) {
+			//draw edge
+			view.gvm.g.addEdge([v0, v1]);
+			view.endDrag();
+			return true;
+		}
+	}
+};
+CreatingEdges.prototype.onmouseout = function(event, view) {
+	if (typeof this.onmouseup == 'function') {
+		return this.onmouseup(event, view);
+	}
+};
+
+function CreatingVertices(modifiers) {
+	Behavior.call(this, modifiers);
+}
+CreatingVertices.prototype = Object.create(Behavior.prototype);
+CreatingVertices.prototype.constructor = CreatingVertices;
+CreatingVertices.prototype.onmousedown = function(event, view) {
+	return view.dragVertex(event);
+};
+CreatingVertices.prototype.onmousemove = function(event, view) {
+	if (view.isDraggingVertex()) {
+		var m1 = [event.clientX, event.clientY];
+		var v1 = view.pickVertex(m1);
+		if (v1 == null) {
+			//draw edge
+			view.setCursor('copy');
+			//consider this event consumed
+			return true;
+		}
+	}
+};
+CreatingVertices.prototype.onmouseup = function(event, view) {
+	if (view.isDraggingVertex()) {
+		var v0 = view.draggingVertex;
+		var m1 = [event.clientX, event.clientY];
+		var v1 = view.pickVertex(m1);
+		if (v1 === null && event.ctrlKey) {
+			//draw edge and new vertex
+			view.gvm.g.addVertex('');
+			view.gvm.v[view.gvm.v.length - 1].p[0] = p[0];
+			view.gvm.v[view.gvm.v.length - 1].p[1] = p[1];
+			view.gvm.g.addEdge([v0, view.gvm.g.v.length - 1]);
+			view.endDrag();
+			return true;
+		}
+	}
+};
+CreatingVertices.prototype.onmouseout = function(event, view) {
+	if (typeof this.onmouseup == 'function') {
+		return this.onmouseup(event, view);
 	}
 };
