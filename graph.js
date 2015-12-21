@@ -307,13 +307,13 @@ CanvasGraphView.prototype = {
 			setTimeout(function(){view.animate();}, frameDuration < 1000/this.maxFPS ? 1000/this.maxFPS - frameDuration : 1);
 		}
 	},
-	zoom: function(f) {
+	zoom: function(s, p) {
 		var oldScale = this.scale;
-		this.scale += f * oldScale;
+		this.scale += s * oldScale;
 		if (this.scale < this.minScale) this.scale = this.minScale;
 		if (this.scale > this.maxScale) this.scale = this.maxScale;
-		this.pan[0] += (this.scale - oldScale) / oldScale * this.pan[0];
-		this.pan[1] += (this.scale - oldScale) / oldScale * this.pan[1];
+		this.pan[0] += (this.scale - oldScale) / oldScale * (this.pan[0] + p[0] - this.c.width / 2);
+		this.pan[1] += (this.scale - oldScale) / oldScale * (this.pan[1] + p[1] - this.c.height / 2);
 	},
 	transform: function(v) {
 		return [v[0] * this.scale - this.pan[0] + this.c.width/2, v[1] * this.scale - this.pan[1] + this.c.height/2];
@@ -611,7 +611,7 @@ Zooming.prototype = Object.create(Behavior.prototype);
 Zooming.prototype.constructor = Zooming;
 Zooming.prototype.onmousewheel = function(event, view) {
 	if (this.applies(event)) {
-		view.zoom(event.wheelDelta/1000);
+		view.zoom(event.wheelDelta/1000, [event.clientX, event.clientY]);
 		if (view.motion === null)
 			view.render();
 		if (event.preventDefault)
