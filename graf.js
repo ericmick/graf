@@ -290,6 +290,7 @@ CanvasGraphView.prototype = {
 						if (typeof view.behaviors[j][eventName] == 'function'
 								&& view.behaviors[j][eventName](event, view)) {
 							//if a behavior's event handler returns something truthy, consider the event consumed.
+							event.preventDefault();
 							return true;
 						}
 					}
