@@ -6,13 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <script type="text/javascript" src="graf.js"></script>
 <script type="text/javascript">
-var g = new Graph(["a","b","c","d"],[[0,1],[1,2],[1,3]]);
-var gvm = new GraphViewModel(g);
+var g = window.g = new Graph(["a","b","c","d"],[[0,1],[1,2],[1,3]]);
+var gvm = window.gvm = new GraphViewModel(g);
 var cgv;
 function onLoad() {
 	var canvas = document.createElement("canvas");
 	document.body.appendChild(canvas);
-	cgv = new CanvasGraphView(gvm, canvas, [new Selecting(), new Moving(), new Panning(), new Zooming()]);
+	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new CreatingVertices(), new Selecting(), new Moving(), new Panning(), new Zooming()]);
 	cgv.textChanged.push(function(text) {
 		var input = document.getElementById("input");
 		input.disabled = text === null ? "disabled" : "";
