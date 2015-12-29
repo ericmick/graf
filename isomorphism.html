@@ -2,37 +2,37 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>graf</title>
+<title>a bijection that preserves adjacency</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <script type="text/javascript" src="graf.js"></script>
 <script type="text/javascript">
 var g = window.g = new Graph(["","","",""],[[0,1],[1,2],[1,3]]);
+var g2 = window.g2 = new Graph(["","","",""],[[0,1],[1,2],[1,3]]);
 var gvm = window.gvm = new GraphViewModel(g);
-var cgv;
+var gvm2 = window.gvm2 = new GraphViewModel(g2);
+for (var i = 0; i < gvm.v.length; i++) {
+	gvm.v[i].p = [Math.random() * 3 - 1.5, Math.random() * 3 - 1.5];
+	gvm2.v[i].p = [Math.random() * 3 - 1.5, Math.random() * 3 - 1.5];
+}
+var cgv, cgv2;
 function onLoad() {
 	var canvas = document.createElement("canvas");
+	var canvas2 = document.createElement("canvas");
 	document.body.appendChild(canvas);
-	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new CreatingVertices().shift(), new CreatingEdges(), new Selecting(), new Moving(), new Panning(), new Zooming()]);
-	cgv.textChanged.push(function(text) {
-		var input = document.getElementById("input");
-		input.disabled = text === null ? "disabled" : "";
-		if(input.value != text) {
-			input.value = text;
-			input.focus();
-			input.select();
-		}
-	});
+	document.body.appendChild(canvas2);
+	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new Moving(), new Panning(), new Zooming()]);
+	cgv2 = window.cgv2 = new CanvasGraphView(gvm2, canvas2, [new Moving(), new Panning(), new Zooming()]);
 	var sizeCanvas = function() {
-		canvas.width = window.innerWidth;
+		canvas.width = window.innerWidth/2;
 		canvas.height = window.innerHeight;
+		canvas2.width = window.innerWidth/2;
+		canvas2.height = window.innerHeight;
+		canvas2.style.left = window.innerWidth/2 + 'px';
 		cgv.render();
+		cgv2.render();
 	}
 	window.onresize = sizeCanvas;
 	sizeCanvas();
-}
-function onKeyUp(event) {
-	var input = document.getElementById("input");
-	cgv.setText(input.value);
 }
 </script>
 <style type="text/css">
@@ -43,12 +43,6 @@ body {
 canvas {
 	position: absolute;
 	z-index: 0;
-}
-div#toolbar {
-	float:left;
-	position: absolute;
-	padding: 5px;
-	z-index: 1;
 }
 /* used by the panning behavior */
 .grab {
@@ -65,8 +59,5 @@ div#toolbar {
 </style>
 </head>
 <body onload="return onLoad();" >
-<div id="toolbar">
-	<input id="input" type="text" onkeyup="return onKeyUp(event);" disabled="disabled"/>
-</div>
 </body>
 </html>

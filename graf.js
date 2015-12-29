@@ -276,7 +276,7 @@ CanvasGraphView.prototype = {
 	scale: 100,
 	pan: [0, 0],
 	motion: null,
-	maxFPS: 30,
+	maxFPS: 60,
 	maxScale: 1450,
 	minScale: 45,
 	draggingVertex: null,
@@ -480,10 +480,16 @@ CanvasGraphView.prototype = {
 				this.c.style.cursor = cursor;
 		}
 	},
-	startDrag: function(event) {
-		var m0 = event.touches
+	getMousePosition: function(event) {
+		var m = event.touches
 				? [event.touches[0].clientX, event.touches[0].clientY]
 				: [event.clientX, event.clientY];
+		m[0] -= this.c.offsetLeft;
+		m[1] -= this.c.offsetTop;
+		return m;
+	},
+	startDrag: function(event) {
+		var m0 = this.getMousePosition(event);
 		var v0 = this.pickVertex(m0);
 		if (v0 !== null) {
 			this.draggingVertex = v0;
@@ -500,9 +506,7 @@ CanvasGraphView.prototype = {
 		if (!this.isDraggingVertex()) {
 			return false;
 		}
-		var m0 = event.touches
-				? [event.touches[0].clientX, event.touches[0].clientY]
-				: [event.clientX, event.clientY];
+		var m0 = this.getMousePosition(event);
 		this.draggingTo = m0;
 		this.render();
 		return true;
@@ -576,16 +580,12 @@ Panning.prototype.mousedown = Panning.prototype.touchstart = function(event, vie
 			view.motion = [new Ease(x[0], x[0], v[0], now, now + this.easeTime),
 				new Ease(x[1], x[1], v[1], now, now + this.easeTime)];
 		}
-		var m0 = event.touches
-				? [event.touches[0].clientX, event.touches[0].clientY]
-				: [event.clientX, event.clientY];
+		var m0 = view.getMousePosition(event);
 		var pan0 = [view.pan[0], view.pan[1]];
 		view.setCursor('grabbing');
 		this.mousemove = this.touchmove = function(event) {
 			var now = new Date().getTime();
-			var m1 = event.touches
-				? [event.touches[0].clientX, event.touches[0].clientY]
-				: [event.clientX, event.clientY];
+			var m1 = view.getMousePosition(event);
 			var d = [(m1[0]-m0[0]), (m1[1]-m0[1])];
 			if (view.motion !== null) {
 				var v = [view.motion[0].v(now), view.motion[1].v(now)];
@@ -617,9 +617,7 @@ Panning.prototype.mousedown = Panning.prototype.touchstart = function(event, vie
 };
 Panning.prototype.mousemove = Panning.prototype.touchmove = function(event, view) {
 	if (this.applies(event)) {
-		var m0 = event.touches
-				? [event.touches[0].clientX, event.touches[0].clientY]
-				: [event.clientX, event.clientY];
+		var m0 = view.getMousePosition(event);
 		var v0 = view.pickVertex(m0);
 		if (v0 === null && view.draggingVertex === null) {
 			view.setCursor('grab');
@@ -641,7 +639,7 @@ Selecting.prototype = Object.create(Behavior.prototype);
 Selecting.prototype.constructor = Selecting;
 Selecting.prototype.click = function(event, view) {
 	if (this.applies(event)) {
-		var m = [event.clientX, event.clientY];
+		var m = view.getMousePosition(event);
 		var v = view.pickVertex(m);
 		view.selection = v;
 		view.notify(view.textChanged, view.getText());
@@ -657,7 +655,7 @@ Zooming.prototype = Object.create(Behavior.prototype);
 Zooming.prototype.constructor = Zooming;
 Zooming.prototype.mousewheel = function(event, view) {
 	if (this.applies(event)) {
-		view.zoom(event.wheelDelta/1000, [event.clientX, event.clientY]);
+		view.zoom(event.wheelDelta/1000, view.getMousePosition(event));
 		if (view.motion === null)
 			view.render();
 		if (event.preventDefault)
@@ -679,7 +677,7 @@ Moving.prototype.mousedown = function(event, view) {
 };
 Moving.prototype.mousemove = function(event, view) {
 	if (this.applies(event)) {
-		var m = [event.clientX, event.clientY];
+		var m = view.getMousePosition(event);
 		var v = view.pickVertex(m);
 		if (view.draggingVertex !== null) {
 			var a, b;
@@ -699,7 +697,7 @@ Moving.prototype.mousemove = function(event, view) {
 Moving.prototype.mouseup = function(event, view) {
 	if (this.applies(event) && view.draggingVertex !== null) {
 		var v0 = view.draggingVertex;
-		var m1 = [event.clientX, event.clientY];
+		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
 		var p0 = view.untransform(view.draggingFrom);
 		var p1 = view.untransform(m1);
@@ -733,8 +731,9 @@ CreatingEdges.prototype.mousedown = function(event, view) {
 };
 CreatingEdges.prototype.mousemove = function(event, view) {
 	if (this.applies(event) && view.isDraggingVertex()) {
-		var m1 = [event.clientX, event.clientY];
+		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
+		view.moveDrag(event);
 		if (v1 !== null) {
 			view.setCursor('alias');
 			//consider this event consumed
@@ -745,12 +744,12 @@ CreatingEdges.prototype.mousemove = function(event, view) {
 CreatingEdges.prototype.mouseup = function(event, view) {
 	if (this.applies(event) && view.isDraggingVertex()) {
 		var v0 = view.draggingVertex;
-		var m1 = [event.clientX, event.clientY];
+		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
 		if (v1 !== null) {
 			//draw edge
 			view.gvm.g.addEdge([v0, v1]);
-			view.endDrag();
+			view.endDrag(event);
 			return true;
 		}
 	}
@@ -770,9 +769,10 @@ CreatingVertices.prototype.mousedown = function(event, view) {
 	return view.startDrag(event);
 };
 CreatingVertices.prototype.mousemove = function(event, view) {
-	if (view.isDraggingVertex()) {
-		var m1 = [event.clientX, event.clientY];
+	if (this.applies(event) && view.isDraggingVertex()) {
+		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
+		view.moveDrag(event);
 		if (v1 == null) {
 			//draw edge
 			view.setCursor('copy');
@@ -784,9 +784,9 @@ CreatingVertices.prototype.mousemove = function(event, view) {
 CreatingVertices.prototype.mouseup = function(event, view) {
 	if (this.applies(event) && view.isDraggingVertex()) {
 		var v0 = view.draggingVertex;
-		var m1 = [event.clientX, event.clientY];
+		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
-		view.endDrag();
+		view.endDrag(event);
 		if (v1 === null) {
 			//draw edge and new vertex
 			var v = view.gvm.addVertex('', view.untransform(m1));
