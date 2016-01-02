@@ -2,12 +2,12 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>a bijection that preserves adjacency</title>
+<title>graf</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <script type="text/javascript" src="graf.js"></script>
 <script type="text/javascript">
-var g = window.g = new Graph(["","","",""],[[0,1],[1,2],[1,3]]);
-var g2 = window.g2 = new Graph(["","","",""],[[0,1],[1,2],[1,3]]);
+var g = window.g = new Graph([""],[]);
+var g2 = window.g2 = new Graph([""],[]);
 var gvm = window.gvm = new GraphViewModel(g);
 var gvm2 = window.gvm2 = new GraphViewModel(g2);
 for (var i = 0; i < gvm.v.length; i++) {
@@ -20,8 +20,8 @@ function onLoad() {
 	var canvas2 = document.createElement("canvas");
 	document.body.appendChild(canvas);
 	document.body.appendChild(canvas2);
-	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new Moving(), new Panning(), new Zooming()]);
-	cgv2 = window.cgv2 = new CanvasGraphView(gvm2, canvas2, [new Moving(), new Panning(), new Zooming()]);
+	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new CreatingVertices().shift(), new CreatingEdges().shift(), new Moving(), new Panning(), new Zooming()]);
+	cgv2 = window.cgv2 = new CanvasGraphView(gvm2, canvas2, [new CreatingVertices().shift(), new CreatingEdges().shift(), new Moving(), new Panning(), new Zooming()]);
 	var sizeCanvas = function() {
 		canvas.width = window.innerWidth/2;
 		canvas.height = window.innerHeight;
@@ -33,6 +33,112 @@ function onLoad() {
 	}
 	window.onresize = sizeCanvas;
 	sizeCanvas();
+	var onChange = function() {
+		document.title = '...';
+		document.title = isIsomorphic(g, g2);
+	};
+	onChange();
+	gvm.graphChanged.push(onChange);
+	gvm2.graphChanged.push(onChange);
+	window.recalculate = onChange;
+}
+
+function getAdjacency(g) {
+	var a = []; //adjacency matrix of g
+	//initialize matrix to zeros
+	for (var i = 0; i < g.v.length; i++) {
+		var b = [];
+		for (var j = 0; j < g.v.length; j++) {
+			b.push(0);
+		}
+		a.push(b);
+	}
+	for (var k = 0; k < g.e.length; k++) {
+		var e = g.e[k];
+		a[e[0]][e[1]] = 1;
+		a[e[1]][e[0]] = 1;
+	}
+	return a;
+}
+
+function isEqual(a, a2) {
+	if (a.length != a2.length) {
+		return false;
+	}
+	for (var i = 0; i < a.length; i++) {
+		for (var j = 0; j < a.length; j++) {
+			if (a[i][j] != a2[i][j]) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+function swap(a, i, j) {
+	var temp;
+	for (var k = 0; k < a.length; k++) {
+		temp = a[k][i];
+		a[k][i] = a[k][j];
+		a[k][j] = temp;
+	}
+	temp = a[i];
+	a[i] = a[j];
+	a[j] = temp;
+}
+
+//Heap's algorithm
+function permute(n, a, callback) {
+	if (n == 1) {
+		return callback(a);
+	} else {
+		for (var i = 0; i < n - 1; i++) {
+			var result = permute(n - 1, a, callback);
+			if (result) {
+				return result;
+			};
+			if ((n % 2) == 0) {
+				swap(a, i, n-1);
+			} else {
+				swap(a, 0, n-1);
+			}
+		}
+		return permute(n - 1, a, callback);
+	}
+}
+
+function isIsomorphic(g, g2) {
+	var a = getAdjacency(g), a2 = getAdjacency(g2);
+	console.log('-a2-');
+	console.log(print(a2));
+	console.log('----');
+	console.log(print(a));
+	if (a.length != a2.length) {
+		return false;
+	}
+	if (isEqual(a, a2)) {
+		return true;
+	}
+	var result = false;
+	permute(a.length, a, function(a) {
+		console.log(print(a));
+		if (isEqual(a, a2)) {
+			result = true;
+			return true;
+		}
+	});
+	return result || false;
+}
+
+function print(a) {
+	var s = '';
+	for (var i = 0; i < a.length; i++) {
+		for (var j = 0; j < a.length; j++) {
+			s += a[i][j];
+		}
+		s += '\n';
+	}
+	return s;
 }
 </script>
 <style type="text/css">

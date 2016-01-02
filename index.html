@@ -12,7 +12,7 @@ var cgv;
 function onLoad() {
 	var canvas = document.createElement("canvas");
 	document.body.appendChild(canvas);
-	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new CreatingVertices().shift(), new CreatingEdges(), new Selecting(), new Moving(), new Panning(), new Zooming()]);
+	cgv = window.cgv = new CanvasGraphView(gvm, canvas, [new CreatingVertices().shift(), new CreatingEdges().shift(), new Selecting(), new Moving(), new Panning(), new Zooming()]);
 	cgv.textChanged.push(function(text) {
 		var input = document.getElementById("input");
 		input.disabled = text === null ? "disabled" : "";

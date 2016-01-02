@@ -366,7 +366,11 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[edge.e[0]];
 			var b = this.gvm.v[edge.e[1]];
-			var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
+			if (this.style == 'curvy') {
+				var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
+			} else {
+				var c = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2];
+			}
 			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
 			angle = Math.atan2((c[0] - b.p[0]) / b.width, (c[1] - b.p[1]) / b.height);
@@ -375,7 +379,11 @@ CanvasGraphView.prototype = {
 			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b.p)), lb), b.p));
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
-			this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
+			if (this.style == 'curvy') {
+				this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
+			} else {
+				this.ctx.lineTo(b[0], b[1]);
+			}
 		}
 		this.ctx.stroke();
 	},
@@ -411,7 +419,10 @@ CanvasGraphView.prototype = {
 		}
 		for (i = 0; i < this.gvm.v.length; i++) {
 			if (i === this.draggingVertex) {
-				this.renderVertex(this.gvm.v[i], true, this.draggingTo);
+				this.renderVertex(this.gvm.v[i],
+						true,
+						Vector.add(this.transform(this.gvm.v[i].p),
+								Vector.subtract(this.draggingTo, this.draggingFrom)));
 			}
 			this.renderVertex(this.gvm.v[i], i == this.selection);
 		}
@@ -506,8 +517,8 @@ CanvasGraphView.prototype = {
 		if (!this.isDraggingVertex()) {
 			return false;
 		}
-		var m0 = this.getMousePosition(event);
-		this.draggingTo = m0;
+		var m = this.getMousePosition(event);
+		this.draggingTo = m;
 		this.render();
 		return true;
 	},
@@ -518,6 +529,7 @@ CanvasGraphView.prototype = {
 		this.draggingVertex = null;
 		this.draggingFrom = null;
 		this.draggingTo = null;
+		this.render();
 		return true;
 	}
 };
@@ -695,7 +707,7 @@ Moving.prototype.mousemove = function(event, view) {
 	}
 };
 Moving.prototype.mouseup = function(event, view) {
-	if (this.applies(event) && view.draggingVertex !== null) {
+	if (this.applies(event) && view.isDraggingVertex()) {
 		var v0 = view.draggingVertex;
 		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
@@ -704,11 +716,8 @@ Moving.prototype.mouseup = function(event, view) {
 		view.endDrag();
 		if (v1 === null || v0 === v1) {
 			//move vertex
-			view.gvm.v[v0].p[0] += p1[0] - p0[0];
-			view.gvm.v[v0].p[1] += p1[1] - p0[1];
-			if (view.motion === null) {
-				view.render();
-			}
+			view.gvm.v[v0].p = Vector.add(view.gvm.v[v0].p, Vector.subtract(p1, p0));
+			view.render();
 			return true;
 		}
 	}
@@ -786,13 +795,11 @@ CreatingVertices.prototype.mouseup = function(event, view) {
 		var v0 = view.draggingVertex;
 		var m1 = view.getMousePosition(event);
 		var v1 = view.pickVertex(m1);
-		view.endDrag(event);
 		if (v1 === null) {
 			//draw edge and new vertex
 			var v = view.gvm.addVertex('', view.untransform(m1));
 			view.gvm.addEdge(v0, v);
-			console.log(v0, v);
-			console.log(view.gvm.g.v, view.gvm.g.e);
+			view.endDrag(event);
 			return true;
 		}
 	}
