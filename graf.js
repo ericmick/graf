@@ -21,6 +21,15 @@ function Graph(v, e) { //Constructor
 	this.vertexEdited = [];
 }
 Graph.prototype = { //Prototype
+	isAdjacent: function(a, b) {
+		for (var i = 0; i < this.e.length; i++) {
+			if((this.e[i][0] == a && this.e[i][1] == b)
+					|| (this.e[i][0] == b && this.e[i][1] == a)) {
+				return true;
+			}
+		}
+		return false;
+	},
 	isConnected: function() {
 		if (this.v.length <= 1) return true;
 		else return this.getConnected([0]).length == this.v.length;
@@ -30,10 +39,12 @@ Graph.prototype = { //Prototype
 		for (var i = 0; i < a.length; i++) {
 			for (var j = 0; j < this.e.length; j++) {
 				var v = a[i], e = this.e[j];
-				if (e[0] == v && b.indexOf(e[1]) == -1)
+				if (e[0] == v && b.indexOf(e[1]) == -1) {
 					b.push(e[1]);
-				if (e[1] == v && b.indexOf(e[0]) == -1)
+				}
+				if (e[1] == v && b.indexOf(e[0]) == -1) {
 					b.push(e[0]);
+				}
 			}
 		}
 		return b;
@@ -54,6 +65,9 @@ Graph.prototype = { //Prototype
 		return i;
 	},
 	addEdge: function(e) {
+		if (this.isAdjacent(e[0], e[1])) {
+			return false;
+		}
 		this.e.push(e);
 		this.notify(this.edgeAdded, this.e.length - 1);
 	},
@@ -80,6 +94,9 @@ Graph.prototype = { //Prototype
 		for (var j = 0; j < eventHandlers.length; j++) {
 			eventHandlers[j](eventArgs);
 		}
+	},
+	clone: function() {
+		return new Graph(this.v.slice(0), this.e.slice(0));
 	}
 };
 
@@ -281,22 +298,23 @@ CanvasGraphView.prototype = {
 	minScale: 45,
 	draggingVertex: null,
 	draggingFrom: null,
+	events: ['click',
+			'mousedown',
+			'mousemove',
+			'mouseout',
+			'mouseup',
+			'mousewheel',
+			'touchstart', 
+			'touchmove',
+			'touchcancel',
+			'touchend'],
 	handleEvents: function() {
 		var view = this;
-		var events = ['click',
-				'mousedown',
-				'mousemove',
-				'mouseout',
-				'mouseup',
-				'mousewheel',
-				'touchstart', 
-				'touchmove',
-				'touchcancel',
-				'touchend'];
-		for (var i = 0; i < events.length; i++) {
+		view.eventListeners = {};
+		for (var i = 0; i < view.events.length; i++) {
 			(function() {
-				var eventName = events[i];
-				view.c.addEventListener(eventName, function(event) {
+				var eventName = view.events[i];
+				view.eventListeners[eventName] = function(event) {
 					for (var j = 0; j < view.behaviors.length; j++) {
 						if (typeof view.behaviors[j][eventName] == 'function'
 								&& view.behaviors[j][eventName](event, view)) {
@@ -309,8 +327,16 @@ CanvasGraphView.prototype = {
 					if (eventName == 'mousemove') {
 						view.setCursor('default');
 					}
-				}, false);
+				};
+				view.c.addEventListener(eventName, view.eventListeners[eventName], false);
 			})();
+		}
+	},
+	detach: function() {
+		var view = this;
+		for (var i = 0; i < view.events.length; i++) {
+			var eventName = view.events[i];
+			view.c.removeEventListener(eventName, view.eventListeners[eventName]);
 		}
 	},
 	animate: function() {
@@ -576,8 +602,8 @@ Behavior.prototype = {
 };
 
 function Panning(modifiers, easeTime, coastTime) {
-	this.easeTime = (typeof easeTime != 'undefined') ? easeTime : 100;
-	this.coastTime = (typeof coastTime != 'undefined') ? coastTime : 400;
+	this.easeTime = (typeof easeTime != 'undefined') ? easeTime : 50;
+	this.coastTime = (typeof coastTime != 'undefined') ? coastTime : 100;
 	Behavior.call(this, modifiers);
 }
 Panning.prototype = Object.create(Behavior.prototype);
