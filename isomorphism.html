@@ -1,0 +1,365 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>graf</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link href='https://fonts.googleapis.com/css?family=Fjalla+One' rel='stylesheet' type='text/css'>
+<style type="text/css">
+body {
+	margin: 0px;
+	font-family: 'Fjalla One', helvetica, sans-serif;
+	background: whitesmoke;
+}
+canvas {
+	position: absolute;
+	z-index: 0;
+}
+#notification {
+	position: absolute;
+	z-index: 100;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	background: whitesmoke;
+	font-size: 2.5em;
+	text-align: center;
+	display: none;
+	cursor: pointer;
+}
+#notification h1 {
+	margin: 8%;
+}
+#notification #notification-click {
+	display: none;
+}
+.divider {
+	height: 100%;
+	width: 3px;
+	background: black;
+	position: absolute;
+	left: 50%;
+	top: 0;
+	margin-left: -1.5px;
+}
+.header {
+	position: absolute;
+	top: 8%;
+	left: 50%;
+	width: 400px;
+	margin-left: -200px;
+	text-align: center;
+	z-index: 50;
+}
+.header>div {
+	margin-bottom: 8px;
+}
+.title {
+	background: black;
+	color: white;
+	border-radius: 28px;
+	padding: 4px;
+}
+.title h1 {
+	margin: 0;
+}
+.score {
+	position: absolute;
+	background: white;
+	color: black;
+	border-radius: 28px;
+	border: 3px black solid;
+	width: 100px;
+	left: 50%;
+	margin-left: -53px;
+}
+.score div {
+	margin: 4px;
+}
+#time {
+	font-family: "Lucida Console", Monaco, monospace;
+	font-size: 12px;
+}
+.buttons {
+	position: absolute;
+	bottom: 8%;
+	left: 50%;
+	width: 300px;
+	margin-left: -150px;
+	text-align: center;
+	z-index: 50;
+}
+.button {
+	display: inline-block;
+	width: 50%;
+	font-size: 50px;
+	text-align: center;
+	margin: 0;
+	color: white;
+	cursor: pointer;
+}
+.not-selectable {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+#yes {
+	background: green;
+	border-radius: 28px 0 0 28px;
+}
+#no {
+	background: red;
+	border-radius: 0 28px 28px 0;
+}
+/* used by the panning behavior */
+.grab {
+	cursor: move;
+	cursor: grab;
+	cursor: -moz-grab;
+	cursor: -webkit-grab;
+}
+.grabbing {
+	cursor: grabbing;
+	cursor: -moz-grabbing;
+	cursor: -webkit-grabbing;
+}
+</style>
+</head>
+<body onload="return onLoad();" >
+<div id="notification">
+<h1 id="notification-text">hi!</h1>
+<p id="notification-click" class="not-selectable">(click to continue)</p>
+</div>
+<div class="divider"></div>
+<div class="header"><div class="title"><h1>Are these isomorphic?</h1></div><div class="score"><div id="round">1 of 25</div><div id="time">0.0</div></div></div>
+<div class="buttons"><div class="button not-selectable" id="yes" onclick="return yes();">yes</div><div class="button not-selectable" id="no" onclick="return no();">no</div><div class="divider"></div></div>
+<script src="graf.js"></script>
+<script src="isomorphism.js"></script>
+<script type="text/javascript">
+var n, round = 0, g, g2, gvm, gvm2, cgv, cgv2, answer, worker;
+var startTime;
+var schedule = [
+		3,3,4,4,4,
+		5,5,5,5,5,
+		5,5,5,5,6,
+		6,6,6,6,6,
+		7,7,7,7,8];
+var correctAnswers = 0, timeElapsed = 0;
+var canvas = document.createElement("canvas");
+var canvas2 = document.createElement("canvas");
+document.body.appendChild(canvas);
+document.body.appendChild(canvas2);
+function finishRound() {
+	if (round == schedule.length - 1) {
+		var time = timeElapsed;
+		var score = Math.ceil(Math.pow(correctAnswers / schedule.length - .5, 3) / (time + 1000000) * 1000000000);
+		showNotification('Done!<br/>You got ' + correctAnswers + ' out of ' + schedule.length + '<br/>correct in ' + time / 1000 + ' seconds<br/>for a score of ' + score + '.', false);
+	} else {
+		makeInstance();
+	}
+}
+function makeInstance() {
+	n = schedule[round++];
+	g = makeRandomGraph(n);
+	g2 = g.clone();
+	var mutationRate = Math.pow(.5, n - 6.22);
+	if (Math.random() < mutationRate) {
+		addRandomEdge(g2);
+		removeRandomEdge(g2);
+	}
+	getAnswer(g, g2);
+	//set up views
+	gvm = new GraphViewModel(g);
+	gvm2 = new GraphViewModel(g2);
+	randomizePositions(gvm);
+	randomizePositions(gvm2);
+	if (cgv) {
+		cgv.detach();
+	}
+	if (cgv2) {
+		cgv2.detach();
+	}
+	cgv = new CanvasGraphView(gvm, canvas, [new Moving(), new Zooming()]);
+	cgv2 = new CanvasGraphView(gvm2, canvas2, [new Moving(), new Zooming()]);
+	cgv.scale = 90;
+	cgv2.scale = 90;
+	var sizeCanvas = function() {
+		canvas.width = window.innerWidth / 2;
+		canvas.height = window.innerHeight;
+		canvas2.width = window.innerWidth / 2;
+		canvas2.height = window.innerHeight;
+		canvas2.style.left = window.innerWidth / 2 + 'px';
+		cgv.render();
+		cgv2.render();
+	}
+	window.onresize = sizeCanvas;
+	sizeCanvas();
+	document.getElementById('round').innerHTML = round + ' of ' + schedule.length;
+}
+function getAnswer() {
+	answer = undefined;
+	if (worker) {
+		worker.postMessage([g, g2]);
+	} else if (typeof isIsomorphic == 'function') {
+		answer = isIsomorphic(g, g2);
+	} else {
+		showNotification('Error: calculation failed.\nSorry.', false);
+	}
+}
+function findRateOfIsomorphism(n, k) {
+	var c = 0;
+	var mutationRate = Math.pow(.5, n - 6.22);
+	for (var i = 0; i < k; i++) {
+		var g = makeRandomGraph(n);
+		var g2 = g.clone();
+		if (Math.random() < mutationRate) {
+			addRandomEdge(g2);
+			removeRandomEdge(g2);
+		}
+		if (isIsomorphic(g, g2)) {
+			c++;
+		}
+	}
+	return c / k;
+};
+function makeRandomGraph(n) {
+	var g = new Graph([""],[]);
+	for (var i = 1; i < n; i++) {
+		g.addVertex("");
+	}
+	for (i = 0; i < n; i++) {
+		for (var j = i + 1; j < n; j++) {
+			g.addEdge([i, j]);
+		}
+	}
+	for (i = 0; i < g.e.length; i++) {
+		if (Math.random() < 0.5) {
+			var e = g.e[i];
+			g.removeEdge(i);
+			//don't cause graph to become disconnected
+			if (!g.isConnected()) {
+				g.addEdge(e);
+			}
+		}
+	}
+	return g;
+}
+function addRandomEdge(g) {
+	var tryRandomEdge = function() {
+		var a = Math.floor(Math.random() * g.v.length);
+		var b = Math.floor(Math.random() * g.v.length);
+		if (a != b && !g.isAdjacent(a, b)) {
+			g.addEdge([a, b]);
+			return true;
+		} else return false;
+	};
+	for (var j = 0; j < 100; j++) {
+		if (tryRandomEdge()) return;
+	}
+}
+function removeRandomEdge(g) {
+	var tryRandomEdge = function() {
+		var r = Math.floor(Math.random() * g.e.length);
+		var e = g.e[r];
+		g.removeEdge(r);
+		if (!g.isConnected()) {
+			g.addEdge(e);
+			return false;
+		} else return true;
+	};
+	for (var j = 0; j < 100; j++) {
+		if (tryRandomEdge()) return;
+	}
+}
+function randomizePositions(gvm) {
+	for (var i = 0; i < gvm.v.length; i++) {
+		//try to place randomly in a clear space, up to 1000 times
+		var p;
+		for (var j = 0; j < 1000; j++) {
+			var tryRandomPosition = function() {
+				p = [Math.random() * 4 - 2, Math.random() * 4 - 2]; 
+				for (var k = 0; k < i; k++) {
+					if (Math.abs(gvm.v[k].p[0] - p[0]) < .4 || Math.abs(gvm.v[k].p[1] - p[1]) < .4) {
+						return false;
+					}
+				}
+				return true;
+			};
+			if (tryRandomPosition()) {
+				break;
+			}
+		}
+		gvm.v[i].p = p;
+	}
+}
+function onLoad() {
+	var worker;
+	try {
+		worker = new Worker('isomorphism.js');
+		worker.onmessage = function(e) {
+			answer = e.data;
+		};
+	} catch (e) {
+		showNotification('Your browser may become unresponsive when performing calculations.  Upgrading may fix this.', true);
+	}
+	var timeSpan = document.getElementById('time');
+	var tick = function() {
+		if (!isShowingNotification) {
+			timeElapsed += 100;
+			timeSpan.innerHTML = (timeElapsed / 1000).toFixed(1);
+		}
+	};
+	setInterval(tick, 100);
+	makeInstance();
+}
+var notificationTimeout;
+var isShowingNotification = false;
+function showNotification(message, hasClick, duration) {
+	var notification = document.getElementById('notification');
+	var click = document.getElementById('notification-click');
+	if (duration) {
+		notificationTimeout = setTimeout(hideNotification, duration);
+	}
+	if (hasClick) {
+		click.style.display = 'block';
+		notification.onclick = hideNotification;
+	} else {
+		click.style.display = 'none';
+		notification.onclick = undefined;
+	}
+	document.getElementById('notification-text').innerHTML = message;
+	notification.style.display = 'block';
+	isShowingNotification = true;
+}
+function hideNotification() {
+	if (notificationTimeout) {
+		clearTimeout(notificationTimeout);
+	}
+	document.getElementById('notification').style.display = 'none';
+	isShowingNotification = false;
+}
+function yes() {
+	if (answer) {
+		showNotification('Correct.', true);
+		correctAnswers++;
+	} else {
+		showNotification('Incorrect.', true);
+	}
+	finishRound();
+}
+function no() {
+	if (!answer) {
+		showNotification('Correct.', true);
+		correctAnswers++;
+	} else {
+		showNotification('Incorrect.', true);
+	}
+	finishRound();
+}
+</script>
+</body>
+</html>
