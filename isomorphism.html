@@ -2,7 +2,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>graf</title>
+<title>graph isomorphism</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link href='https://fonts.googleapis.com/css?family=Fjalla+One' rel='stylesheet' type='text/css'>
 <style type="text/css">
@@ -154,7 +154,7 @@ var canvas2 = document.createElement("canvas");
 document.body.appendChild(canvas);
 document.body.appendChild(canvas2);
 function finishRound() {
-	if (round == schedule.length - 1) {
+	if (round == schedule.length) {
 		var time = timeElapsed;
 		var score = Math.ceil(Math.pow(correctAnswers / schedule.length - .5, 3) / (time + 1000000) * 1000000000);
 		showNotification('Done!<br/>You got ' + correctAnswers + ' out of ' + schedule.length + '<br/>correct in ' + time / 1000 + ' seconds<br/>for a score of ' + score + '.', false);

@@ -16,4 +16,8 @@ It's nothing but a little bit of javascript, so just download it or uploaded it 
 
 Right now, it's barely a prototype/demo/toy. Maybe you can help me make it into something useful.
 
-https://ericmick.github.io/graf
+Try the graph isomorphism game:
+http://github.ericmickelsen.com/graf/isomorphism.html
+
+Or build a graph:
+http://github.ericmickelsen.com/graf
