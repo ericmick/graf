@@ -151,16 +151,21 @@ var schedule = [
 var correctAnswers = 0, timeElapsed = 0;
 var canvas = document.createElement("canvas");
 var canvas2 = document.createElement("canvas");
+var gameTimer;
+var gameOver = false;
 document.body.appendChild(canvas);
 document.body.appendChild(canvas2);
 function finishRound() {
 	if (round == schedule.length) {
-		var time = timeElapsed;
-		var score = Math.ceil(Math.pow(correctAnswers / schedule.length - .5, 3) / (time + 1000000) * 1000000000);
-		showNotification('Done!<br/>You got ' + correctAnswers + ' out of ' + schedule.length + '<br/>correct in ' + time / 1000 + ' seconds<br/>for a score of ' + score + '.', false);
+		clearTimeout(gameTimer);
+		gameOver = true;
 	} else {
 		makeInstance();
 	}
+}
+function showEnding() {
+	var score = Math.ceil(Math.pow(correctAnswers / schedule.length - .5, 3) / (timeElapsed + 1000000) * 1000000000);
+	showNotification('Done!<br/>You got ' + correctAnswers + ' out of ' + schedule.length + '<br/>correct in ' + timeElapsed / 1000 + ' seconds<br/>for a score of ' + score + '.', false);
 }
 function makeInstance() {
 	n = schedule[round++];
@@ -304,7 +309,7 @@ function onLoad() {
 			answer = e.data;
 		};
 	} catch (e) {
-		showNotification('Your browser may become unresponsive when performing calculations.  Upgrading may fix this.', true);
+		showNotification('Your browser may become unresponsive when performing calculations.  Upgrading may fix this, or you may just be running from your file system.', true);
 	}
 	var timeSpan = document.getElementById('time');
 	var tick = function() {
@@ -313,7 +318,7 @@ function onLoad() {
 			timeSpan.innerHTML = (timeElapsed / 1000).toFixed(1);
 		}
 	};
-	setInterval(tick, 100);
+	gameTimer = setInterval(tick, 100);
 	makeInstance();
 }
 var notificationTimeout;
@@ -339,8 +344,12 @@ function hideNotification() {
 	if (notificationTimeout) {
 		clearTimeout(notificationTimeout);
 	}
-	document.getElementById('notification').style.display = 'none';
-	isShowingNotification = false;
+	if (gameOver) {
+		showEnding();
+	} else {
+		document.getElementById('notification').style.display = 'none';
+		isShowingNotification = false;
+	}
 }
 function yes() {
 	if (answer) {
