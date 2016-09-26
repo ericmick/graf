@@ -392,10 +392,11 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[edge.e[0]];
 			var b = this.gvm.v[edge.e[1]];
-			if (this.style == 'curvy') {
-				var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
+			var c;
+			if (this.style === 'curvy') {
+				c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
 			} else {
-				var c = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2];
+				c = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2];
 			}
 			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
@@ -405,7 +406,7 @@ CanvasGraphView.prototype = {
 			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b.p)), lb), b.p));
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
-			if (this.style == 'curvy') {
+			if (this.style === 'curvy') {
 				this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
 			} else {
 				this.ctx.lineTo(b[0], b[1]);
@@ -513,6 +514,7 @@ CanvasGraphView.prototype = {
 			case 'grabbing':
 				this.c.className += ' ' + cursor;
 				this.c.style.cursor = '';
+				break;
 			default:
 				this.c.style.cursor = cursor;
 		}
@@ -543,8 +545,7 @@ CanvasGraphView.prototype = {
 		if (!this.isDraggingVertex()) {
 			return false;
 		}
-		var m = this.getMousePosition(event);
-		this.draggingTo = m;
+		this.draggingTo = this.getMousePosition(event);
 		this.render();
 		return true;
 	},
@@ -678,8 +679,7 @@ Selecting.prototype.constructor = Selecting;
 Selecting.prototype.click = function(event, view) {
 	if (this.applies(event)) {
 		var m = view.getMousePosition(event);
-		var v = view.pickVertex(m);
-		view.selection = v;
+		view.selection = view.pickVertex(m);
 		view.notify(view.textChanged, view.getText());
 		view.render();
 		return true;
@@ -718,7 +718,6 @@ Moving.prototype.mousemove = function(event, view) {
 		var m = view.getMousePosition(event);
 		var v = view.pickVertex(m);
 		if (view.draggingVertex !== null) {
-			var a, b;
 			view.moveDrag(event);
 			if (v === null || view.draggingVertex === v) {
 				view.setCursor('move');
