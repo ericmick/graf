@@ -384,7 +384,7 @@ CanvasGraphView.prototype = {
 		}
 		return null;
 	},
-	renderEdge: function(edge) {
+	renderEdge: function(edge, positionOverride) {
 		if (edge.e[0] == edge.e[1]) {
 			var p = this.gvm.v[edge.e[0]].p;
 			this.circle(p[0] + p.width / 2, p[1] + p.height / 2, p.height);
@@ -392,18 +392,20 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[edge.e[0]];
 			var b = this.gvm.v[edge.e[1]];
+			var a_point = positionOverride && positionOverride.p0? this.untransform(positionOverride.p0) : a.p;
+			var b_point = positionOverride && positionOverride.p1? this.untransform(positionOverride.p1) : b.p;
 			var c;
 			if (this.style === 'curvy') {
-				c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
+				c = [(a_point[0] + b_point[0]) / 2 + (b_point[1] - a_point[1]) / 8, (a_point[1] + b_point[1]) / 2 + (b_point[0] - a_point[0]) / 8];
 			} else {
-				c = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2];
+				c = [(a_point[0] + b_point[0]) / 2, (a_point[1] + b_point[1]) / 2];
 			}
-			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
+			var angle = Math.atan2((c[0] - a_point[0]) / a.width, (c[1] - a_point[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
-			angle = Math.atan2((c[0] - b.p[0]) / b.width, (c[1] - b.p[1]) / b.height);
+			angle = Math.atan2((c[0] - b_point[0]) / b.width, (c[1] - b_point[1]) / b.height);
 			var lb = Math.sqrt(Math.pow(Math.sin(angle) * b.width / 2, 2) + Math.pow(Math.cos(angle) * b.height / 2, 2));
-			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a.p)), la), a.p));
-			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b.p)), lb), b.p));
+			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a_point)), la), a_point));
+			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b_point)), lb), b_point));
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
 			if (this.style === 'curvy') {
@@ -441,17 +443,27 @@ CanvasGraphView.prototype = {
 		this.ctx.textAlign = "center";
 		this.ctx.lineWidth = this.scale * 0.02;
 		this.ctx.strokeStyle = "black";
+		var dragPositionOverride = (this.draggingVertex !== null?
+			Vector.add(	this.transform(this.gvm.v[this.draggingVertex].p), Vector.subtract(this.draggingTo, this.draggingFrom))
+			: null);
 		for (var i = 0; i < this.gvm.e.length; i++) {
-			this.renderEdge(this.gvm.e[i]);
+			if (this.gvm.e[i].e[0] === this.draggingVertex) {
+				this.renderEdge(this.gvm.e[i], {"p0": dragPositionOverride});
+			}
+			else if (this.gvm.e[i].e[1] === this.draggingVertex) {
+				this.renderEdge(this.gvm.e[i], {"p1": dragPositionOverride});
+			}
+			else {
+				this.renderEdge(this.gvm.e[i]);
+			}
 		}
 		for (i = 0; i < this.gvm.v.length; i++) {
 			if (i === this.draggingVertex) {
-				this.renderVertex(this.gvm.v[i],
-						true,
-						Vector.add(this.transform(this.gvm.v[i].p),
-								Vector.subtract(this.draggingTo, this.draggingFrom)));
+				this.renderVertex(this.gvm.v[i], true, dragPositionOverride);
 			}
-			this.renderVertex(this.gvm.v[i], i == this.selection);
+			else {
+				this.renderVertex(this.gvm.v[i], i == this.selection);
+			}
 		}
 		this.ctx.restore();
 	},
