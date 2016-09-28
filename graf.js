@@ -103,18 +103,18 @@ Graph.prototype = { //Prototype
 //GraphViewModel
 //The prototype for models of views of graphs.
 function GraphViewModel(graph) {
-	this.g = graph;
-	this.v = [];
-	var spiral = this.stepSpiral(this.g.v.length);
-	for (var i = 0; i < this.g.v.length; i++) {
-		this.v.push(new this.Vertex(this.g.v[i], spiral[i]));
-	}
-	this.e = [];
-	for (i = 0; i < this.g.e.length; i++) {
-		this.e.push(new this.Edge(this.g.e[i]));
-	}
 	var vm = this;
-	this.graphChanged = [];//events
+	vm.g = graph;
+	vm.v = [];
+	var spiral = vm.stepSpiral(this.g.v.length);
+	for (var i = 0; i < vm.g.v.length; i++) {
+		vm.v.push(new vm.Vertex(this.g.v[i], spiral[i]));
+	}
+	vm.e = [];
+	for (i = 0; i < this.g.e.length; i++) {
+		vm.e.push(new vm.Edge(this.g.e[i]));
+	}
+	vm.graphChanged = [];//events
 	graph.vertexAdded.push(function (i) {
 		vm.v.push(new vm.Vertex(vm.g.v[i], [0, 0]));
 		vm.notify(vm.graphChanged);
@@ -139,15 +139,15 @@ function GraphViewModel(graph) {
 }
 GraphViewModel.prototype = {
 	Vertex: function(text, p) {
-		var v = this;
-		v.text = text;
-		v.p = [p[0], p[1]];
-		v.setText = function (t) {
-			v.text = t;
-			v.width = Math.max(0.375 + t.length * 0.125, 0.5);
-			v.height = 0.5;
+		var vm = this;
+		vm.text = text;
+		vm.p = [p[0], p[1]];
+		vm.setText = function (t) {
+			vm.text = t;
+			vm.width = Math.max(0.375 + t.length * 0.125, 0.5);
+			vm.height = 0.5;
 		};
-		v.setText(text);
+		vm.setText(text);
 	},
 	Edge: function(e) {
 		//TODO: label edges, support directed edges
@@ -384,7 +384,15 @@ CanvasGraphView.prototype = {
 		}
 		return null;
 	},
-	renderEdge: function(edge) {
+	getPoint: function(i) {
+		var p = this.gvm.v[i].p;
+		if (i === this.draggingVertex) {
+			var dragVector = Vector.subtract(this.untransform(this.draggingTo), this.untransform(this.draggingFrom));
+			p = Vector.add(p, dragVector);
+		}
+		return p;
+	},
+	renderEdge: function(edge, positionOverride) {
 		if (edge.e[0] == edge.e[1]) {
 			var p = this.gvm.v[edge.e[0]].p;
 			this.circle(p[0] + p.width / 2, p[1] + p.height / 2, p.height);
@@ -392,29 +400,33 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[edge.e[0]];
 			var b = this.gvm.v[edge.e[1]];
-			if (this.style == 'curvy') {
-				var c = [(a.p[0] + b.p[0]) / 2 + (b.p[1] - a.p[1]) / 8, (a.p[1] + b.p[1]) / 2 + (b.p[0] - a.p[0]) / 8];
+			var aPoint = this.getPoint(edge.e[0]);
+			var bPoint = this.getPoint(edge.e[1]);
+			var c;
+			if (this.style === 'curvy') {
+				c = [(aPoint[0] + bPoint[0]) / 2 + (bPoint[1] - aPoint[1]) / 8, (aPoint[1] + bPoint[1]) / 2 + (bPoint[0] - aPoint[0]) / 8];
 			} else {
-				var c = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2];
+				c = [(aPoint[0] + bPoint[0]) / 2, (aPoint[1] + bPoint[1]) / 2];
 			}
-			var angle = Math.atan2((c[0] - a.p[0]) / a.width, (c[1] - a.p[1]) / a.height);
+			var angle = Math.atan2((c[0] - aPoint[0]) / a.width, (c[1] - aPoint[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
-			angle = Math.atan2((c[0] - b.p[0]) / b.width, (c[1] - b.p[1]) / b.height);
+			angle = Math.atan2((c[0] - bPoint[0]) / b.width, (c[1] - bPoint[1]) / b.height);
 			var lb = Math.sqrt(Math.pow(Math.sin(angle) * b.width / 2, 2) + Math.pow(Math.cos(angle) * b.height / 2, 2));
-			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a.p)), la), a.p));
-			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b.p)), lb), b.p));
+			aPoint = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, aPoint)), la), aPoint));
+			bPoint = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, bPoint)), lb), bPoint));
 			c = this.transform(c);
-			this.ctx.moveTo(a[0], a[1]);
-			if (this.style == 'curvy') {
-				this.ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]);
+			this.ctx.moveTo(aPoint[0], aPoint[1]);
+			if (this.style === 'curvy') {
+				this.ctx.quadraticCurveTo(c[0], c[1], bPoint[0], bPoint[1]);
 			} else {
-				this.ctx.lineTo(b[0], b[1]);
+				this.ctx.lineTo(bPoint[0], bPoint[1]);
 			}
 		}
 		this.ctx.stroke();
 	},
-	renderVertex: function(v, selected, position) {
-		var p = position ? position : this.transform(v.p);
+	renderVertex: function(i, selected) {
+		var v = this.gvm.v[i];
+		var p = this.transform(this.getPoint(i));
 		this.ctx.strokeStyle = selected ? "white" : "black";
 		if (v.width == v.height) {
 			this.circle(p[0], p[1], this.scale * v.height / 2);
@@ -445,12 +457,11 @@ CanvasGraphView.prototype = {
 		}
 		for (i = 0; i < this.gvm.v.length; i++) {
 			if (i === this.draggingVertex) {
-				this.renderVertex(this.gvm.v[i],
-						true,
-						Vector.add(this.transform(this.gvm.v[i].p),
-								Vector.subtract(this.draggingTo, this.draggingFrom)));
+				this.renderVertex(i, true);
 			}
-			this.renderVertex(this.gvm.v[i], i == this.selection);
+			else {
+				this.renderVertex(i, i == this.selection);
+			}
 		}
 		this.ctx.restore();
 	},
@@ -513,6 +524,7 @@ CanvasGraphView.prototype = {
 			case 'grabbing':
 				this.c.className += ' ' + cursor;
 				this.c.style.cursor = '';
+				break;
 			default:
 				this.c.style.cursor = cursor;
 		}
@@ -543,8 +555,7 @@ CanvasGraphView.prototype = {
 		if (!this.isDraggingVertex()) {
 			return false;
 		}
-		var m = this.getMousePosition(event);
-		this.draggingTo = m;
+		this.draggingTo = this.getMousePosition(event);
 		this.render();
 		return true;
 	},
@@ -678,8 +689,7 @@ Selecting.prototype.constructor = Selecting;
 Selecting.prototype.click = function(event, view) {
 	if (this.applies(event)) {
 		var m = view.getMousePosition(event);
-		var v = view.pickVertex(m);
-		view.selection = v;
+		view.selection = view.pickVertex(m);
 		view.notify(view.textChanged, view.getText());
 		view.render();
 		return true;
@@ -718,7 +728,6 @@ Moving.prototype.mousemove = function(event, view) {
 		var m = view.getMousePosition(event);
 		var v = view.pickVertex(m);
 		if (view.draggingVertex !== null) {
-			var a, b;
 			view.moveDrag(event);
 			if (v === null || view.draggingVertex === v) {
 				view.setCursor('move');
