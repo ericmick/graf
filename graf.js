@@ -103,18 +103,18 @@ Graph.prototype = { //Prototype
 //GraphViewModel
 //The prototype for models of views of graphs.
 function GraphViewModel(graph) {
-	this.g = graph;
-	this.v = [];
-	var spiral = this.stepSpiral(this.g.v.length);
-	for (var i = 0; i < this.g.v.length; i++) {
-		this.v.push(new this.Vertex(this.g.v[i], spiral[i]));
-	}
-	this.e = [];
-	for (i = 0; i < this.g.e.length; i++) {
-		this.e.push(new this.Edge(this.g.e[i]));
-	}
 	var vm = this;
-	this.graphChanged = [];//events
+	vm.g = graph;
+	vm.v = [];
+	var spiral = vm.stepSpiral(this.g.v.length);
+	for (var i = 0; i < vm.g.v.length; i++) {
+		vm.v.push(new vm.Vertex(this.g.v[i], spiral[i]));
+	}
+	vm.e = [];
+	for (i = 0; i < this.g.e.length; i++) {
+		vm.e.push(new vm.Edge(this.g.e[i]));
+	}
+	vm.graphChanged = [];//events
 	graph.vertexAdded.push(function (i) {
 		vm.v.push(new vm.Vertex(vm.g.v[i], [0, 0]));
 		vm.notify(vm.graphChanged);
@@ -139,15 +139,15 @@ function GraphViewModel(graph) {
 }
 GraphViewModel.prototype = {
 	Vertex: function(text, p) {
-		var v = this;
-		v.text = text;
-		v.p = [p[0], p[1]];
-		v.setText = function (t) {
-			v.text = t;
-			v.width = Math.max(0.375 + t.length * 0.125, 0.5);
-			v.height = 0.5;
+		var vm = this;
+		vm.text = text;
+		vm.p = [p[0], p[1]];
+		vm.setText = function (t) {
+			vm.text = t;
+			vm.width = Math.max(0.375 + t.length * 0.125, 0.5);
+			vm.height = 0.5;
 		};
-		v.setText(text);
+		vm.setText(text);
 	},
 	Edge: function(e) {
 		//TODO: label edges, support directed edges
@@ -392,20 +392,21 @@ CanvasGraphView.prototype = {
 			this.ctx.beginPath();
 			var a = this.gvm.v[edge.e[0]];
 			var b = this.gvm.v[edge.e[1]];
-			var a_point = positionOverride && positionOverride.p0? this.untransform(positionOverride.p0) : a.p;
-			var b_point = positionOverride && positionOverride.p1? this.untransform(positionOverride.p1) : b.p;
+
+			var aPoint = (edge.e[0] === this.draggingVertex? this.untransform(positionOverride) : a.p);
+			var bPoint = (edge.e[1] === this.draggingVertex? this.untransform(positionOverride) : b.p);
 			var c;
 			if (this.style === 'curvy') {
-				c = [(a_point[0] + b_point[0]) / 2 + (b_point[1] - a_point[1]) / 8, (a_point[1] + b_point[1]) / 2 + (b_point[0] - a_point[0]) / 8];
+				c = [(aPoint[0] + bPoint[0]) / 2 + (bPoint[1] - aPoint[1]) / 8, (aPoint[1] + bPoint[1]) / 2 + (bPoint[0] - aPoint[0]) / 8];
 			} else {
-				c = [(a_point[0] + b_point[0]) / 2, (a_point[1] + b_point[1]) / 2];
+				c = [(aPoint[0] + bPoint[0]) / 2, (aPoint[1] + bPoint[1]) / 2];
 			}
-			var angle = Math.atan2((c[0] - a_point[0]) / a.width, (c[1] - a_point[1]) / a.height);
+			var angle = Math.atan2((c[0] - aPoint[0]) / a.width, (c[1] - aPoint[1]) / a.height);
 			var la = Math.sqrt(Math.pow(Math.sin(angle) * a.width / 2, 2) + Math.pow(Math.cos(angle) * a.height / 2, 2));
-			angle = Math.atan2((c[0] - b_point[0]) / b.width, (c[1] - b_point[1]) / b.height);
+			angle = Math.atan2((c[0] - bPoint[0]) / b.width, (c[1] - bPoint[1]) / b.height);
 			var lb = Math.sqrt(Math.pow(Math.sin(angle) * b.width / 2, 2) + Math.pow(Math.cos(angle) * b.height / 2, 2));
-			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, a_point)), la), a_point));
-			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, b_point)), lb), b_point));
+			a = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, aPoint)), la), aPoint));
+			b = this.transform(Vector.add(Vector.multiply(Vector.normalize(Vector.subtract(c, bPoint)), lb), bPoint));
 			c = this.transform(c);
 			this.ctx.moveTo(a[0], a[1]);
 			if (this.style === 'curvy') {
@@ -416,8 +417,8 @@ CanvasGraphView.prototype = {
 		}
 		this.ctx.stroke();
 	},
-	renderVertex: function(v, selected, position) {
-		var p = position ? position : this.transform(v.p);
+	renderVertex: function(v, selected, positionOverride) {
+		var p = positionOverride ? positionOverride : this.transform(v.p);
 		this.ctx.strokeStyle = selected ? "white" : "black";
 		if (v.width == v.height) {
 			this.circle(p[0], p[1], this.scale * v.height / 2);
@@ -447,15 +448,7 @@ CanvasGraphView.prototype = {
 			Vector.add(	this.transform(this.gvm.v[this.draggingVertex].p), Vector.subtract(this.draggingTo, this.draggingFrom))
 			: null);
 		for (var i = 0; i < this.gvm.e.length; i++) {
-			if (this.gvm.e[i].e[0] === this.draggingVertex) {
-				this.renderEdge(this.gvm.e[i], {"p0": dragPositionOverride});
-			}
-			else if (this.gvm.e[i].e[1] === this.draggingVertex) {
-				this.renderEdge(this.gvm.e[i], {"p1": dragPositionOverride});
-			}
-			else {
-				this.renderEdge(this.gvm.e[i]);
-			}
+			this.renderEdge(this.gvm.e[i], dragPositionOverride);
 		}
 		for (i = 0; i < this.gvm.v.length; i++) {
 			if (i === this.draggingVertex) {
