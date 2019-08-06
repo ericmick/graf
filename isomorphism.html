@@ -10,6 +10,7 @@ body {
 	margin: 0px;
 	font-family: 'Fjalla One', helvetica, sans-serif;
 	background: whitesmoke;
+	overflow-x: hidden;
 }
 canvas {
 	position: absolute;
@@ -198,6 +199,8 @@ function makeInstance() {
 		canvas2.width = window.innerWidth / 2;
 		canvas2.height = window.innerHeight;
 		canvas2.style.left = window.innerWidth / 2 + 'px';
+		cgv.scale = Math.min(canvas.width, canvas.height) / 6;
+		cgv2.scale = Math.min(canvas2.width, canvas2.height) / 6;
 		cgv.render();
 		cgv2.render();
 	}
