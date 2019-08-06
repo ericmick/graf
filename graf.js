@@ -530,9 +530,11 @@ CanvasGraphView.prototype = {
 		}
 	},
 	getMousePosition: function(event) {
-		var m = event.touches
+		var m = event.touches && event.touches.length
 				? [event.touches[0].clientX, event.touches[0].clientY]
-				: [event.clientX, event.clientY];
+				: event.changedTouches && event.changedTouches.length
+					? [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+					: [event.clientX, event.clientY];
 		m[0] -= this.c.offsetLeft;
 		m[1] -= this.c.offsetTop;
 		return m;
@@ -718,12 +720,12 @@ function Moving(modifiers) {
 }
 Moving.prototype = Object.create(Behavior.prototype);
 Moving.prototype.constructor = Moving;
-Moving.prototype.mousedown = function(event, view) {
+Moving.prototype.mousedown = Moving.prototype.touchstart = function(event, view) {
 	if (this.applies(event)) {
 		return view.startDrag(event);
 	}
 };
-Moving.prototype.mousemove = function(event, view) {
+Moving.prototype.mousemove = Moving.prototype.touchmove = function(event, view) {
 	if (this.applies(event)) {
 		var m = view.getMousePosition(event);
 		var v = view.pickVertex(m);
@@ -741,7 +743,7 @@ Moving.prototype.mousemove = function(event, view) {
 		}
 	}
 };
-Moving.prototype.mouseup = function(event, view) {
+Moving.prototype.mouseup = Moving.prototype.touchend = function(event, view) {
 	if (this.applies(event) && view.isDraggingVertex()) {
 		var v0 = view.draggingVertex;
 		var m1 = view.getMousePosition(event);
@@ -757,7 +759,7 @@ Moving.prototype.mouseup = function(event, view) {
 		}
 	}
 };
-Moving.prototype.mouseout = function(event, view) {
+Moving.prototype.mouseout = Moving.prototype.touchcancel = function(event, view) {
 	if (typeof this.mouseup == 'function') {
 		return this.mouseup(event, view);
 	}
